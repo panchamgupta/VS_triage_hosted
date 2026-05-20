@@ -98,7 +98,7 @@ def ref_ligand_tile_html(entry):
         "<button type='button' "
         "style='background:#c84c09;border:none;color:#fff;border-radius:6px;"
         "padding:5px 12px;cursor:pointer;font-size:12px;font-weight:600;' "
-        f"onclick=\"_renderPoseFromIndex({idx},{title_js});\">&#9654; View Pose</button>"
+        f"onclick=\"if(typeof _openPoseVisualizerWindow==='function'){{_openPoseVisualizerWindow({idx},{title_js});}}else{{_renderPoseFromIndex({idx},{title_js});}}\">&#9654; View Pose</button>"
         "</div>"
     )
     parts.append("</div>")
@@ -226,8 +226,6 @@ def build_structure_search_entries(mol_df, allowed_scaffold_names=None, pose_sdf
     seen = set()
     for _, row in mol_df.iterrows():
         scaffold_name = str(row.get("scaffold_name", "") or "").strip()
-        if not scaffold_name:
-            continue
         if allowed is not None and scaffold_name not in allowed:
             continue
         canonical_smiles = canonicalize_row_structure(row, pose_sdf_by_index=pose_sdf_by_index)
@@ -241,13 +239,20 @@ def build_structure_search_entries(mol_df, allowed_scaffold_names=None, pose_sdf
         if key in seen:
             continue
         seen.add(key)
+        exact_no_stereo = canonical_smiles
+        try:
+            exact_mol = Chem.MolFromSmiles(canonical_smiles)
+            if exact_mol is not None:
+                exact_no_stereo = Chem.MolToSmiles(exact_mol, isomericSmiles=False)
+        except Exception:
+            pass
         entries.append(
             {
                 "scaffold": scaffold_name,
                 "mol_id": mol_id,
                 "smiles": canonical_smiles,
                 "exact_canonical": canonical_smiles,
-                "exact_canonical_nostereo": Chem.MolToSmiles(Chem.MolFromSmiles(canonical_smiles), isomericSmiles=False),
+                "exact_canonical_nostereo": exact_no_stereo,
             }
         )
     return entries
@@ -466,6 +471,15 @@ def build_idea_cards(
                 f"<button type='button' class='star-btn star-clear' onclick=\"setStar('{sname_js}', 0)\">x</button>"
                 f"</div>"
             )
+        deactivate_html = ""
+        if card_type == "Central":
+            deactivate_html = (
+                f"<label class='deactivate-control smalltxt' "
+                f"style='display:inline-flex;align-items:center;gap:5px;margin-left:8px;cursor:pointer;'>"
+                f"<input type='checkbox' class='deactivate-toggle' data-scaffold='{sname}' "
+                f"onchange=\"setScaffoldDeactivated('{sname_js}', this.checked)\" />"
+                "Deactivate</label>"
+            )
         range_html = ""
         if card_type == "Central":
             display_props = [
@@ -505,7 +519,7 @@ def build_idea_cards(
         blocks.append(
             f"<div class='idea-head'>"
             f"<div style='display:flex;align-items:center;gap:8px;flex-wrap:wrap;'>"
-            f"{cb_html}<b>{row.get('scaffold_name')}</b>{drop_badge_html}{range_html}{star_html}</div>"
+            f"{cb_html}<b>{row.get('scaffold_name')}</b>{drop_badge_html}{range_html}{star_html}{deactivate_html}</div>"
             f"<div class='smalltxt'>{card_type}</div></div>"
         )
         if all_members_cb_html:
@@ -649,16 +663,19 @@ def build_hbond_residue_filter_data(report_mol_df, scaf_df):
 def extract_hbond_residues_from_row(row):
     residues = []
     for col, value in row.items():
-        match = re.match(r"^[A-Za-z]?(\d+)_(donor|acceptor)$", str(col))
-        if not match:
+        if not col.startswith("hbond_to_residue_"):
             continue
-        if pd.isna(value):
+        try:
+            residue = int(col.rsplit("_", 1)[-1])
+        except Exception:
             continue
-        if str(value).strip() == "":
-            continue
-        residues.append(match.group(1))
+        try:
+            present = float(value)
+        except Exception:
+            present = 0.0
+        if present > 0:
+            residues.append(str(residue))
     return sorted(set(residues), key=lambda text: int(text))
-
 
 def build_central_card_payload(
     central_df,
@@ -1306,6 +1323,15 @@ def write_html_report(
         .idea-card.sel-active { border-color: var(--accent) !important; box-shadow: 0 0 0 2px rgba(11, 110, 79, 0.3); }
         .idea-card.top15-highlight { border: 2px solid #c84c09; box-shadow: 0 0 0 2px rgba(200, 76, 9, 0.12); }
         .idea-card.high-distance-highlight { border: 3px solid #22c55e; box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.18); }
+        .idea-card.is-deactivated { opacity: 0.42; filter: grayscale(0.35); background: #f6f7f9; }
+        .idea-card.is-deactivated a,
+        .idea-card.is-deactivated button,
+        .idea-card.is-deactivated input,
+        .idea-card.is-deactivated select,
+        .idea-card.is-deactivated textarea,
+        .idea-card.is-deactivated .moltile { pointer-events: none; }
+        .idea-card.is-deactivated .deactivate-control,
+        .idea-card.is-deactivated .deactivate-control * { pointer-events: auto; }
         .card.sel-active { border-color: var(--accent) !important; box-shadow: 0 0 0 2px rgba(11, 110, 79, 0.3); }
         .moltile.member-sel-active { border-color: #1f3551 !important; box-shadow: 0 0 0 2px rgba(31, 53, 81, 0.2); background:#f7fbff; }
         .star-wrap { display:inline-flex; align-items:center; gap:4px; margin-left:6px; }
@@ -1313,6 +1339,8 @@ def write_html_report(
         .star-btn:hover { background: #f2f6fb; }
         .star-btn.active { border-color: #c84c09; background: #fff2e8; color: #8b2f00; font-weight: 700; }
         .star-btn.star-clear { color: #6a7280; }
+        .deactivate-control { color: #5f6d7a; font-weight: 600; }
+        .deactivate-control input { accent-color: #8a1f1f; cursor: pointer; }
         .panel-actions { display:flex; align-items:center; gap:8px; margin:6px 0 10px 0; }
         .panel-actions button { background:#fff; border:1px solid #c4d0df; color:#1f3551; border-radius:6px; padding:5px 10px; cursor:pointer; font-size:12px; }
         .panel-actions input[type='search'] { background:#fff; border:1px solid #c4d0df; color:#1f3551; border-radius:6px; padding:5px 10px; font-size:12px; min-width:230px; }
@@ -1328,6 +1356,10 @@ def write_html_report(
         .highlight-list .tag.red { background:#fff2e8; color:#8b2f00; border:1px solid #f1c7ad; }
         .highlight-list .tag.green { background:#eefaf1; color:#1d6134; border:1px solid #bfe3cb; }
         .lazy-placeholder { border:1px dashed #c4d0df; border-radius:12px; padding:16px; background:#fbfdff; color:#5f6d7a; }
+        body.pose-popup-mode { padding: 0; background: #eef3f8; }
+        body.pose-popup-mode > * { display: none !important; }
+        body.pose-popup-mode #pose-panel { display: flex !important; position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100vh !important; min-width: 0 !important; min-height: 0 !important; max-width: none !important; max-height: none !important; right: auto !important; bottom: auto !important; border: none !important; border-radius: 0 !important; box-shadow: none !important; }
+        body.pose-popup-mode #pose-close { display: none !important; }
         .residue-filter-grid { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
         .residue-filter-chip { display:inline-flex; align-items:center; gap:6px; background:#f8fbff; border:1px solid #cfe0ef; border-radius:999px; padding:6px 10px; font-size:12px; color:#1f3551; }
         .residue-filter-chip input { accent-color: var(--accent); }
@@ -1490,19 +1522,6 @@ def write_html_report(
         fh.write("</div>")
         fh.write("</div></details></section>")
 
-        # Reference Ligands section (from --ref-ligand-sdf and extracted protein-bound ligands)
-        if ref_ligand_entries:
-            fh.write("<section class='panel'><h2>Reference Ligands</h2>")
-            fh.write(
-                "<p class='smalltxt'>Crystal or reference poses for direct comparison. "
-                "Click <b>View Pose</b> to show in the 3D viewer. "
-                "Check <b>Overlay in viewer</b> to layer it alongside any docking pose you open.</p>"
-            )
-            fh.write("<div class='molgrid' id='ref-ligand-grid'>")
-            for entry in ref_ligand_entries:
-                fh.write(ref_ligand_tile_html(entry))
-            fh.write("</div></section>")
-
         # Properties Panel (above Central Ideas).
         _prop_names_ordered = [
             "GS_LogD", "GS_Sol_74_linear", "GS_CACO2_A2B_10_linear", "GS_CACO2_B2A_10_linear",
@@ -1551,6 +1570,7 @@ def write_html_report(
             "<button type='button' onclick='sortStarredToTop()'>Sort Starred to Top</button>"
             "<button type='button' onclick='resetScaffoldOrder()'>Reset Scaffold</button>"
             "<button type='button' onclick='clearAllStars()'>Clear All Stars</button>"
+            "<button type='button' onclick='activateAllScaffolds()'>Activate All</button>"
             "<input type='search' id='central-scaffold-search' placeholder='Search scaffold number (e.g., 15 or SCF-015)' />"
             "<label class='filter-chip'><input type='checkbox' id='filter-red-highlight' /> Red highlight</label>"
             "<label class='filter-chip'><input type='checkbox' id='filter-green-highlight' /> Green highlight</label>"
@@ -1761,7 +1781,76 @@ def write_html_report(
             "let _structureLibraryPromise=null;\n"
             "let _plotlyReadyPromise=null;\n"
             "let _structureWarmupStarted=false;\n"
+            "const _DEACTIVATE_KEY='rgroup_report_deactivated_v1';\n"
+            "const _DEACTIVATED={};\n"
+            "try{var _savedDeactivated=localStorage.getItem(_DEACTIVATE_KEY);if(_savedDeactivated){Object.assign(_DEACTIVATED,JSON.parse(_savedDeactivated));}}catch(_e){}\n"
             "const _CENTRAL_RENDER_STATE={page:0,pageSize:25,sortMode:'initial',filteredScaffolds:[],activeDeepDive:'',lastTotalPages:1,scaffoldPropStats:{},propImpactSummary:null};\n"
+            "const _POSE_POPUP_QUERY_KEY='posePopup';\n"
+            "function _isScaffoldDeactivated(name){return !!_DEACTIVATED[String(name||'')];}\n"
+            "function _persistDeactivatedScaffolds(){try{localStorage.setItem(_DEACTIVATE_KEY,JSON.stringify(_DEACTIVATED));}catch(_e){}}\n"
+            "function setScaffoldDeactivated(name,deactivated){\n"
+            "  var key=String(name||'');\n"
+            "  if(!key){return;}\n"
+            "  if(deactivated){_DEACTIVATED[key]=true;}else{delete _DEACTIVATED[key];}\n"
+            "  _persistDeactivatedScaffolds();\n"
+            "  if(_CENTRAL_RENDER_STATE.activeDeepDive===key&&_isScaffoldDeactivated(key)){_CENTRAL_RENDER_STATE.activeDeepDive='';}\n"
+            "  _renderCentralPage();\n"
+            "}\n"
+            "function activateAllScaffolds(){\n"
+            "  Object.keys(_DEACTIVATED).forEach(function(key){delete _DEACTIVATED[key];});\n"
+            "  _persistDeactivatedScaffolds();\n"
+            "  _renderCentralPage();\n"
+            "}\n"
+            "function _syncDeactivatedScaffolds(){\n"
+            "  document.querySelectorAll('.deactivate-toggle').forEach(function(cb){\n"
+            "    var scaf=String(cb.dataset.scaffold||'');\n"
+            "    cb.checked=_isScaffoldDeactivated(scaf);\n"
+            "  });\n"
+            "  document.querySelectorAll('#central-idea-grid .idea-card').forEach(function(card){\n"
+            "    var scaf=String(card.dataset.scaffold||'');\n"
+            "    card.classList.toggle('is-deactivated',_isScaffoldDeactivated(scaf));\n"
+            "  });\n"
+            "}\n"
+            "function _isPosePopupMode(){\n"
+            "  try{return (new URLSearchParams(window.location.search)).get(_POSE_POPUP_QUERY_KEY)==='1';}catch(_e){return false;}\n"
+            "}\n"
+            "function _buildPosePopupUrl(idx,label){\n"
+            "  var href=window.location.href.split('#')[0];\n"
+            "  var url;\n"
+            "  try{url=new URL(href);}catch(_e){return href;}\n"
+            "  url.searchParams.set(_POSE_POPUP_QUERY_KEY,'1');\n"
+            "  var params=new URLSearchParams();\n"
+            "  params.set('poseIdx',String(idx));\n"
+            "  params.set('label',String(label||('Mol '+String(idx))));\n"
+            "  url.hash=params.toString();\n"
+            "  return url.toString();\n"
+            "}\n"
+            "function _openPoseVisualizerWindow(idx,label){\n"
+            "  if(_isPosePopupMode()){if(typeof _renderPoseFromIndex==='function'){_renderPoseFromIndex(idx,label);}return;}\n"
+            "  var popupUrl=_buildPosePopupUrl(idx,label);\n"
+            "  var popup=window.open(popupUrl,'rgroup_pose_visualizer','popup=yes,width=1400,height=900,resizable=yes,scrollbars=yes');\n"
+            "  if(popup){\n"
+            "    try{popup.location.replace(popupUrl);}catch(_e){}\n"
+            "    try{popup.focus();}catch(_e){}\n"
+            "  }else if(typeof _renderPoseFromIndex==='function'){\n"
+            "    _renderPoseFromIndex(idx,label);\n"
+            "  }\n"
+            "}\n"
+            "function _consumePosePopupRequestFromHash(){\n"
+            "  if(!_isPosePopupMode()){return;}\n"
+            "  if(typeof _mkPosePanel==='function'){_mkPosePanel();}\n"
+            "  document.body.classList.add('pose-popup-mode');\n"
+            "  var panel=document.getElementById('pose-panel');\n"
+            "  if(panel){panel.style.display='flex';}\n"
+            "  var raw=String(window.location.hash||'').replace(/^#/,'');\n"
+            "  if(!raw){return;}\n"
+            "  var hashParams=new URLSearchParams(raw);\n"
+            "  var idx=parseInt(hashParams.get('poseIdx')||'-1',10);\n"
+            "  var label=hashParams.get('label')||('Mol '+String(idx));\n"
+            "  if(!(idx>=0)){return;}\n"
+            "  document.title='Docking Visualizer';\n"
+            "  if(typeof _renderPoseFromIndex==='function'){_renderPoseFromIndex(idx,label);}\n"
+            "}\n"
             "function _decodeBase64ToUint8Array(base64Text){\n"
             "  var binary=window.atob(base64Text);\n"
             "  var bytes=new Uint8Array(binary.length);\n"
@@ -1958,6 +2047,7 @@ def write_html_report(
             "    var scaf=String(el.dataset.scaffold||'');\n"
             "    el.classList.toggle('sel-active',!!(typeof _isScaffoldSelected==='function'&&_isScaffoldSelected(scaf)));\n"
             "  });\n"
+            "  _syncDeactivatedScaffolds();\n"
             "}\n"
             "function _isDuplicateHideEnabled(){\n"
             "  var cb=document.getElementById('filter-hide-duplicates');\n"
@@ -2198,7 +2288,7 @@ def write_html_report(
             "function _renderDeepDivesForVisible(scaffolds){\n"
             "  var shell=document.getElementById('deep-dive-shell');\n"
             "  if(!shell){return;}\n"
-            "  var list=(scaffolds||[]).filter(function(name){return !!_getDeepDiveTpl(name);});\n"
+            "  var list=(scaffolds||[]).filter(function(name){return !_isScaffoldDeactivated(name)&&!!_getDeepDiveTpl(name);});\n"
             "  if(!list.length){\n"
             "    shell.className='lazy-placeholder';\n"
             "    shell.innerHTML='No deep-dive content is available for the currently visible central scaffolds.';\n"
@@ -2215,6 +2305,7 @@ def write_html_report(
             "  _applyExcludeMotifToDeepDives();\n"
             "  _applyDuplicateHideToDeepDives();\n"
             "  _updateDeepDiveMemberCounts();\n"
+            "  _syncDeactivatedScaffolds();\n"
             "}\n"
             "function _renderCentralPage(){\n"
             "  var grid=document.getElementById('central-idea-grid');\n"
@@ -2239,6 +2330,7 @@ def write_html_report(
             "  _updateVisibleCentralDropBadges();\n"
             "  _syncVisibleScaffoldSelections();\n"
             "  Object.keys(_STARS||{}).forEach(function(name){if(typeof _applyStarUI==='function'){_applyStarUI(name);}});\n"
+            "  _syncDeactivatedScaffolds();\n"
             "  _applyStructureHighlighting();\n"
             "  _renderDeepDivesForVisible(sliceScafs);\n"
             "  if(typeof _applyPropFilterToDeepDives==='function'){_applyPropFilterToDeepDives();}\n"
@@ -2258,6 +2350,7 @@ def write_html_report(
             "}\n"
             "function openDeepDive(scaffold){\n"
             "  var scaf=String(scaffold||'');\n"
+            "  if(_isScaffoldDeactivated(scaf)){return;}\n"
             "  var idx=_CENTRAL_RENDER_STATE.filteredScaffolds.indexOf(scaf);\n"
             "  if(idx>=0){\n"
             "    var pageSize=_getCentralPageSize(Math.max(1,_CENTRAL_RENDER_STATE.filteredScaffolds.length));\n"
@@ -2318,6 +2411,7 @@ def write_html_report(
             "  if(resetPage){_CENTRAL_RENDER_STATE.page=0;}\n"
             "  _renderCentralPage();\n"
             "}\n"
+            "if(_isPosePopupMode()){window.addEventListener('hashchange',_consumePosePopupRequestFromHash);window.addEventListener('load',_consumePosePopupRequestFromHash);}\n"
             "function _clearStructureHighlighting(){\n"
             "  document.querySelectorAll('#central-idea-grid .idea-card,.card[id^=\"dd-\"]').forEach(function(el){\n"
             "    el.classList.remove('structure-match-active');\n"

@@ -7,7 +7,7 @@ else
 fi
 
 "${PYTHON_CMD[@]}" process_docking_IF_show_docking.py --input  direct_linker_enumeration_docking_pose_all_BB_with_props.sdf \
-	--protein-pdb 6782_protein.pdb,STAT6-1650495_wo_lig.pdb \
+	--protein-pdb 6782_protein.pdb \
 	--file-prefix VS_visualization_05052026 \
 	--interaction-csv direct_linker_all_IF.csv \
 	--interaction-id-col Title \
@@ -22,7 +22,7 @@ fi
         --exclude-smiles-file exclude_motifs.smi \
         --exclude-match-mode substructure \
 	--top-per-scaffold 10 \
-	--max-scaffolds-in-report 525 \
+	--max-scaffolds-in-report 25 \
 	--max-rot-bonds 13 \
 	--max-hbd 2 \
 	--neutral-only \
