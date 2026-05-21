@@ -12,18 +12,6 @@ def weighted_present(values):
     return (num / den) if den > 0 else None
 
 
-def select_high_interaction_molecules(df, cutoff, top_n=8):
-    if df.empty or "interaction_count" not in df.columns:
-        return df.head(0).copy()
-    subset = df[df["interaction_count"].map(lambda x: x is not None and not pd.isna(x) and float(x) >= cutoff)].copy()
-    if subset.empty:
-        return subset
-    sort_cols = ["interaction_count", "overall_score", "priority_score", "score"]
-    present_cols = [col for col in sort_cols if col in subset.columns]
-    ascending = [False, False, False, True][: len(present_cols)]
-    return subset.sort_values(present_cols, ascending=ascending).head(top_n)
-
-
 def bounded_score(value, low, high):
     if value is None or pd.isna(value):
         return None

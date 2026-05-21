@@ -12,9 +12,6 @@ fi
 	--interaction-csv direct_linker_all_IF.csv \
 	--interaction-id-col Title \
   	--interaction-count-col interaction_count \
-	--high-interaction-cutoff 3 \
-	--unique-by-novelty \
- 	--high-interaction-top-n 10 \
 	--outdir /home/pgupta11/Projects/STAT6_PPI/PPI_program_writing/R_group_mapping/advanced_problems/ \
 	--score-props r_i_docking_score fsp3 interaction_count druglike_score \
 	--auto-detect-score  \

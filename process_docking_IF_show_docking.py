@@ -77,11 +77,11 @@ except Exception:
 
 from cli_config import build_cli_parser, initialize_output_layout, prefixed_output_name, resolve_score_props
 from export_helpers import collect_scaffold_export_data, flush_pending_csv_writes, make_central_barplot, make_central_structure_overview, make_qc_summary, make_residue_heatmap, make_scatter_plot, read_sdf_blocks_by_index, sanitize_sdf_blocks_for_viewer, write_dataframe_csv
-from filtering import apply_report_filters, druglike_score_from_row, select_high_interaction_molecules, weighted_present
+from filtering import apply_report_filters, druglike_score_from_row, weighted_present
 from progress_tracking import format_elapsed, progress_log, start_progress_bar, finish_progress_bar
 from report_helpers import build_hbond_residue_filter_data, write_html_report
 from ranking_helpers import load_external_interaction_counts, merge_and_rank_molecules, normalize_series
-from scaffold_summary_helpers import add_scaffold_stats, aligned_depiction_mol, assign_scaffold_names_and_rerank, build_per_scaffold_substitution_table, build_scaffold_summary_row, build_unique_df, compute_interaction_novelty, draw_scaffold_panel, draw_scaffold_with_positions, filter_sig_to_positions, initialize_scaffold_analysis, mol_png_base64, mol_png_base64_from_smiles, representative_ranked_subset, scaffold_tick_image
+from scaffold_summary_helpers import add_scaffold_stats, aligned_depiction_mol, assign_scaffold_names_and_rerank, build_per_scaffold_substitution_table, build_scaffold_summary_row, draw_scaffold_panel, draw_scaffold_with_positions, filter_sig_to_positions, initialize_scaffold_analysis, mol_png_base64, mol_png_base64_from_smiles, representative_ranked_subset, scaffold_tick_image
 from shared_utils import hash_text, normalize_id, safe_float
 
 # Module-level Uncharger for pH-7 neutrality (reuse to avoid per-call overhead).
@@ -1356,7 +1356,7 @@ def _stage_merge_and_rank(mol_df, args, run_started, merge_stats):
 def _stage_scaffold_analysis(report_mol_df, mol_df, scaf_img_dir, n_workers, args, run_started):
     """
     Build scaffold summaries, rankings, and panels.
-    Returns: (scaf_df, central_df, unique_df, global_reference_smiles)
+    Returns: (scaf_df, central_df, global_reference_smiles)
     """
     progress_log(run_started, "Scaffold summary started")
     scaf_rows = []
@@ -1385,10 +1385,11 @@ def _stage_scaffold_analysis(report_mol_df, mol_df, scaf_img_dir, n_workers, arg
                 scaf_rows.append(row)
     progress_log(run_started, "Scaffold summary complete", done=total_scaf_groups)
 
-    scaf_df, central_df, unique_df, global_reference_smiles = initialize_scaffold_analysis(
+    scaf_df, central_df, _unused_unique_df, global_reference_smiles = initialize_scaffold_analysis(
         scaf_rows,
         report_mol_df,
         args,
+        include_unique=False,
     )
 
     # Scaffold naming and re-ranking.
@@ -1439,8 +1440,6 @@ def _stage_scaffold_analysis(report_mol_df, mol_df, scaf_img_dir, n_workers, arg
     # Refresh with panel updates.
     scaf_df, central_df, global_reference_smiles = assign_scaffold_names_and_rerank(scaf_df, args)
 
-    unique_df = build_unique_df(scaf_df, args)
-
     # Regenerate core images.
     if global_reference_smiles:
         for i, ex in scaf_df["exact_scaffold_smiles"].items():
@@ -1456,7 +1455,7 @@ def _stage_scaffold_analysis(report_mol_df, mol_df, scaf_img_dir, n_workers, arg
             except Exception:
                 continue
 
-    return scaf_df, central_df, unique_df, global_reference_smiles
+    return scaf_df, central_df, global_reference_smiles
 
 
 def _stage_export_and_report(
@@ -1464,7 +1463,6 @@ def _stage_export_and_report(
     report_mol_df,
     scaf_df,
     central_df,
-    unique_df,
     global_reference_smiles,
     args,
     output_layout,
@@ -1482,7 +1480,6 @@ def _stage_export_and_report(
     molecule_summary_name = output_layout["molecule_summary_name"]
     scaffold_summary_name = output_layout["scaffold_summary_name"]
     central_ideas_name = output_layout["central_ideas_name"]
-    unique_ideas_name = output_layout["unique_ideas_name"]
     qc_summary_name = output_layout["qc_summary_name"]
     manifest_name = output_layout["manifest_name"]
 
@@ -1532,30 +1529,8 @@ def _stage_export_and_report(
     merge_stats["excluded_any_rule"] = int((~mol_df["report_eligible"]).sum())
     merge_stats["precluster_hbd_violations"] = precluster_hbd_violations
     merge_stats["report_hbd_violations"] = precluster_hbd_violations
-    if "n_members" in unique_df.columns:
-        merge_stats["unique_n_lt_min_members"] = int(
-            (pd.to_numeric(unique_df["n_members"], errors="coerce") < float(args.unique_min_members)).fillna(False).sum()
-        )
-    else:
-        merge_stats["unique_n_lt_min_members"] = 0
-    if "interaction_novelty" in unique_df.columns:
-        merge_stats["unique_distance_lt_min"] = int(
-            (pd.to_numeric(unique_df["interaction_novelty"], errors="coerce") < float(args.unique_min_novelty))
-            .fillna(False)
-            .sum()
-        )
-    else:
-        merge_stats["unique_distance_lt_min"] = 0
     qc_df = make_qc_summary(mol_df, merge_stats)
     write_dataframe_csv(qc_df, os.path.join(args.outdir, qc_summary_name), index=False, prefer_arrow=False)
-
-    # Figures.
-    # High interaction molecules for protein pocket.
-    high_interaction_df = select_high_interaction_molecules(
-        report_mol_df.merge(scaf_df[["scaffold_id", "scaffold_name"]], on="scaffold_id", how="left"),
-        cutoff=args.high_interaction_cutoff,
-        top_n=args.high_interaction_top_n,
-    )
 
     # Load protein assets.
     protein_pdb_text, protein_cartoon_pdb_text, protein_structure_format, protein_ss_map, protein_sources = load_protein_assets(
@@ -1565,8 +1540,6 @@ def _stage_export_and_report(
 
     # Collect pose indices for protein visualization.
     pose_indices = set()
-    if "mol_index" in high_interaction_df.columns:
-        pose_indices.update(int(i) for i in high_interaction_df["mol_index"].dropna().tolist())
     top_scaf_for_pose = central_df.head(args.max_scaffolds_in_report)["scaffold_id"].tolist()
     for sid in top_scaf_for_pose:
         subset = report_mol_df[report_mol_df["scaffold_id"] == sid].sort_values("priority_rank").head(args.top_per_scaffold)
@@ -1617,11 +1590,8 @@ def _stage_export_and_report(
         report_mol_df,
         scaf_df,
         central_df,
-        unique_df.head(25),
         qc_df,
         figures,
-        high_interaction_df,
-        args.high_interaction_cutoff,
         scaffold_export_data=scaffold_export_data,
         report_filename=report_filename,
         top_per_scaffold=args.top_per_scaffold,
@@ -1691,15 +1661,15 @@ def main():
         mol_df, args, run_started, merge_stats
     )
 
-    # Stage 3: Build scaffold summaries, rankings, rare motifs, and panels.
+    # Stage 3: Build scaffold summaries, rankings, and panels.
     n_workers = max(1, int(args.n_workers) if args.n_workers > 0 else (os.cpu_count() or 2))
-    scaf_df, central_df, unique_df, global_reference_smiles = _stage_scaffold_analysis(
+    scaf_df, central_df, global_reference_smiles = _stage_scaffold_analysis(
         report_mol_df, mol_df, output_layout["scaf_img_dir"], n_workers, args, run_started
     )
 
     # Stage 4: Generate figures, per-scaffold CSVs, and all output files.
     _stage_export_and_report(
-        mol_df, report_mol_df, scaf_df, central_df, unique_df, global_reference_smiles,
+        mol_df, report_mol_df, scaf_df, central_df, global_reference_smiles,
         args, output_layout, merge_stats, precluster_hbd_violations, run_started
     )
 

@@ -45,7 +45,7 @@ def cleanup_prefixed_outputs(outdir, prefix, subdirs=None):
 
 
 def build_cli_parser():
-    ap = argparse.ArgumentParser(description="Analyze docking SDF plus interaction counts to identify central and unique scaffold ideas.")
+    ap = argparse.ArgumentParser(description="Analyze docking SDF plus interaction counts to identify central scaffold ideas.")
     ap.add_argument("--input", required=True, help="Input SDF file")
     ap.add_argument("--outdir", default="rgroup_report", help="Output directory")
     ap.add_argument("--file-prefix", default="", help="Optional prefix applied to output filenames so multiple runs can share one output directory")
@@ -64,39 +64,8 @@ def build_cli_parser():
     ap.add_argument("--score-weight", type=float, default=0.4, help="Weight for docking score in molecule priority")
     ap.add_argument("--interaction-weight", type=float, default=0.6, help="Weight for interaction term in molecule priority")
     ap.add_argument("--min-group-size", type=int, default=3, help="Minimum group size for central idea ranking")
-    ap.add_argument("--max-unique-group-size", type=int, default=2, help="Maximum group size for unique idea ranking")
-    ap.add_argument(
-        "--unique-by-novelty",
-        action="store_true",
-        default=True,
-        help=(
-            "Rank unique ideas by interaction-profile novelty (Jaccard distance to nearest scaffold) "
-            "instead of by scaffold rarity (small n_members). "
-            "This surfaces scaffolds that contact new residues regardless of how many members they have."
-        ),
-    )
-    ap.add_argument(
-        "--no-unique-by-novelty",
-        dest="unique_by_novelty",
-        action="store_false",
-        help="Revert unique idea ranking to the original size-based rarity filter (n_members <= --max-unique-group-size).",
-    )
-    ap.add_argument(
-        "--min-unique-quality",
-        type=float,
-        default=0.2,
-        help=(
-            "Minimum normalised quality score (0-1) a scaffold must have to appear in Unique Ideas "
-            "when --unique-by-novelty is active. Prevents low-quality scaffolds from surfacing just "
-            "because they are structurally unusual. Default: 0.2."
-        ),
-    )
-    ap.add_argument("--unique-min-members", type=int, default=5, help="Minimum scaffold members required for Unique Ideas")
-    ap.add_argument("--unique-min-novelty", type=float, default=0.0, help="Minimum interaction novelty required for Unique Ideas (0 disables this filter)")
     ap.add_argument("--top-per-scaffold", type=int, default=12, help="Representatives shown per scaffold in HTML")
     ap.add_argument("--max-scaffolds-in-report", type=int, default=15, help="Maximum scaffold cards in detailed section")
-    ap.add_argument("--high-interaction-cutoff", type=float, default=10.0, help="Interaction-count cutoff for the high-interaction molecule section in the HTML report")
-    ap.add_argument("--high-interaction-top-n", type=int, default=8, help="Maximum number of molecules to display in the HTML high-interaction section")
     ap.add_argument(
         "--protein-pdb",
         default=None,
@@ -207,7 +176,6 @@ def initialize_output_layout(outdir, file_prefix):
         "molecule_summary_name": prefixed_output_name(file_prefix, "molecule_summary.csv"),
         "scaffold_summary_name": prefixed_output_name(file_prefix, "scaffold_summary.csv"),
         "central_ideas_name": prefixed_output_name(file_prefix, "central_ideas.csv"),
-        "unique_ideas_name": prefixed_output_name(file_prefix, "unique_ideas.csv"),
         "qc_summary_name": prefixed_output_name(file_prefix, "qc_summary.csv"),
         "manifest_name": prefixed_output_name(file_prefix, "run_manifest.json"),
     }

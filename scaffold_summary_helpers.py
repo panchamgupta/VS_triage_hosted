@@ -566,7 +566,7 @@ def _scaffold_dataframe_from_rows(scaf_rows):
     return scaf_df
 
 
-def initialize_scaffold_analysis(scaf_rows, report_mol_df, args):
+def initialize_scaffold_analysis(scaf_rows, report_mol_df, args, include_unique=True):
     scaf_df = _scaffold_dataframe_from_rows(scaf_rows)
     if scaf_df.empty:
         return scaf_df, scaf_df.copy(), scaf_df.copy(), None
@@ -610,7 +610,10 @@ def initialize_scaffold_analysis(scaf_rows, report_mol_df, args):
         unique_priority_novelty.append(up if up is not None else -1.0)
     scaf_df["unique_priority"] = unique_priority_novelty
 
-    unique_df = build_unique_df(scaf_df, args)
+    if include_unique:
+        unique_df = build_unique_df(scaf_df, args)
+    else:
+        unique_df = scaf_df.head(0).copy()
     return scaf_df, central_df, unique_df, global_reference_smiles
 
 

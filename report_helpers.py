@@ -98,7 +98,7 @@ def ref_ligand_tile_html(entry):
         "<button type='button' "
         "style='background:#c84c09;border:none;color:#fff;border-radius:6px;"
         "padding:5px 12px;cursor:pointer;font-size:12px;font-weight:600;' "
-        f"onclick=\"if(typeof _openPoseVisualizerWindow==='function'){{_openPoseVisualizerWindow({idx},{title_js});}}else{{_renderPoseFromIndex({idx},{title_js});}}\">&#9654; View Pose</button>"
+        f"onclick=\"if(typeof _openPoseVisualizerWindow==='function'){{_openPoseVisualizerWindow({idx},{title_js});}}else if(typeof _showPoseFromIndex==='function'){{_showPoseFromIndex({idx},{title_js});}}else{{_renderPoseFromIndex({idx},{title_js});}}\">&#9654; View Pose</button>"
         "</div>"
     )
     parts.append("</div>")
@@ -1036,11 +1036,8 @@ def write_html_report(
     mol_df,
     scaf_df,
     central_df,
-    unique_df,
     qc_df,
     figures,
-    high_interaction_df,
-    high_interaction_cutoff,
     scaffold_export_data=None,
     report_filename="report.html",
     top_per_scaffold=12,
@@ -1360,6 +1357,8 @@ def write_html_report(
         body.pose-popup-mode > * { display: none !important; }
         body.pose-popup-mode #pose-panel { display: flex !important; position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100vh !important; min-width: 0 !important; min-height: 0 !important; max-width: none !important; max-height: none !important; right: auto !important; bottom: auto !important; border: none !important; border-radius: 0 !important; box-shadow: none !important; }
         body.pose-popup-mode #pose-close { display: none !important; }
+        html.pose-popup-early { background: #0f1923; }
+        html.pose-popup-early body > * { display: none !important; }
         .residue-filter-grid { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
         .residue-filter-chip { display:inline-flex; align-items:center; gap:6px; background:#f8fbff; border:1px solid #cfe0ef; border-radius:999px; padding:6px 10px; font-size:12px; color:#1f3551; }
         .residue-filter-chip input { accent-color: var(--accent); }
@@ -1395,7 +1394,9 @@ def write_html_report(
 
     with open(html_path, "w", encoding="utf-8") as fh:
         fh.write("<html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>")
-        fh.write(f"<style>{css}</style></head><body>")
+        fh.write(f"<style>{css}</style>")
+        fh.write("<script>(function(){try{if((new URLSearchParams(window.location.search)).get('posePopup')==='1'){document.documentElement.classList.add('pose-popup-early');}}catch(e){}})()</script>")
+        fh.write("</head><body>")
         if scaffold_export_data:
             fh.write("<div id='export-toolbar' class='export-toolbar'>")
             fh.write("<div id='scaf-export-group' class='export-group'>")
@@ -1431,7 +1432,7 @@ def write_html_report(
         fh.write("<ul>")
         fh.write(
             "<li><b>Report structure and navigation:</b> "
-            "The report contains four main sections: Overview, Central Ideas, High-Interaction Molecules, and deep dive details for each scaffold. "
+            "The report contains three main sections: Overview, Central Ideas, and deep dive details for each scaffold. "
             "Users can navigate from summary scaffold cards to detailed views showing 3D structures, molecule tables, docking scores, and interaction fingerprints.</li>"
         )
         fh.write(
@@ -1658,27 +1659,6 @@ def write_html_report(
         )
         fh.write("</section>")
 
-        fh.write("<section class='panel'><h2>High-Interaction Molecules</h2>")
-        fh.write(
-            f"<p class='smalltxt'>Top molecules with interaction count at or above {high_interaction_cutoff}. "
-            f"These are aligned to their Murcko scaffold orientation for direct visual comparison.</p>"
-        )
-        if high_interaction_df.empty:
-            fh.write("<p><i>No report-eligible molecules met the interaction-count cutoff.</i></p>")
-        else:
-            fh.write("<div class='molgrid'>")
-            for _, row in high_interaction_df.iterrows():
-                fh.write(
-                    molecule_tile_html(
-                        row,
-                        show_scaffold=True,
-                        global_reference_smiles=global_reference_smiles,
-                        enable_pose_hover=True,
-                    )
-                )
-            fh.write("</div>")
-        fh.write("</section>")
-
         fh.write("<section class='panel'><h2>Scaffold Deep Dive (Central Ideas)</h2>")
         fh.write("<div id='deep-dive-shell' class='lazy-placeholder'>Open a central scaffold card to render its deep dive.</div>")
         fh.write("</section>")
@@ -1786,6 +1766,7 @@ def write_html_report(
             "try{var _savedDeactivated=localStorage.getItem(_DEACTIVATE_KEY);if(_savedDeactivated){Object.assign(_DEACTIVATED,JSON.parse(_savedDeactivated));}}catch(_e){}\n"
             "const _CENTRAL_RENDER_STATE={page:0,pageSize:25,sortMode:'initial',filteredScaffolds:[],activeDeepDive:'',lastTotalPages:1,scaffoldPropStats:{},propImpactSummary:null};\n"
             "const _POSE_POPUP_QUERY_KEY='posePopup';\n"
+            "var _POSE_POPUP_REF=null;\n"
             "function _isScaffoldDeactivated(name){return !!_DEACTIVATED[String(name||'')];}\n"
             "function _persistDeactivatedScaffolds(){try{localStorage.setItem(_DEACTIVATE_KEY,JSON.stringify(_DEACTIVATED));}catch(_e){}}\n"
             "function setScaffoldDeactivated(name,deactivated){\n"
@@ -1820,18 +1801,69 @@ def write_html_report(
             "  try{url=new URL(href);}catch(_e){return href;}\n"
             "  url.searchParams.set(_POSE_POPUP_QUERY_KEY,'1');\n"
             "  var params=new URLSearchParams();\n"
+            "  params.set('action','show');\n"
             "  params.set('poseIdx',String(idx));\n"
             "  params.set('label',String(label||('Mol '+String(idx))));\n"
+            "  params.set('nonce',String(Date.now()));\n"
             "  url.hash=params.toString();\n"
             "  return url.toString();\n"
             "}\n"
+            "function _getPosePopupWindow(){\n"
+            "  try{if(_POSE_POPUP_REF&&!_POSE_POPUP_REF.closed){return _POSE_POPUP_REF;}}catch(_e){}\n"
+            "  return null;\n"
+            "}\n"
+            "function _sendPosePopupCommand(action,idx,label,checked){\n"
+            "  var popup=_getPosePopupWindow();\n"
+            "  if(!popup){return false;}\n"
+            "  try{\n"
+            "    popup.postMessage({channel:'rgroup-pose-popup',action:String(action||'show'),poseIdx:idx,label:String(label||('Mol '+String(idx))),checked:(typeof checked==='undefined'?null:!!checked)},'*');\n"
+            "    return true;\n"
+            "  }catch(_e){}\n"
+            "  try{\n"
+            "    var params=new URLSearchParams();\n"
+            "    params.set('action',String(action||'show'));\n"
+            "    params.set('poseIdx',String(idx));\n"
+            "    params.set('label',String(label||('Mol '+String(idx))));\n"
+            "    if(typeof checked!=='undefined'){params.set('checked',checked?'1':'0');}\n"
+            "    params.set('nonce',String(Date.now()));\n"
+            "    popup.location.hash=params.toString();\n"
+            "    return true;\n"
+            "  }catch(_e){}\n"
+            "  return false;\n"
+            "}\n"
+            "function _runPosePopupCommand(action,idx,label,checked){\n"
+            "  if(!(idx>=0)){return;}\n"
+            "  document.title='Docking Visualizer';\n"
+            "  if(action==='overlay'&&typeof _applyPoseOverlaySelection==='function'){_applyPoseOverlaySelection(idx,label,!!checked);return;}\n"
+            "  if(typeof _showPoseFromIndex==='function'){_showPoseFromIndex(idx,label);}else if(typeof _renderPoseFromIndex==='function'){_renderPoseFromIndex(idx,label);}\n"
+            "}\n"
+            "function _consumePosePopupMessage(event){\n"
+            "  if(!_isPosePopupMode()){return;}\n"
+            "  var data=event&&event.data?event.data:null;\n"
+            "  if(!data||data.channel!=='rgroup-pose-popup'){return;}\n"
+            "  if(typeof _mkPosePanel==='function'){_mkPosePanel();}\n"
+            "  document.body.classList.add('pose-popup-mode');\n"
+            "  var panel=document.getElementById('pose-panel');\n"
+            "  if(panel){panel.style.display='flex';}\n"
+            "  var idx=parseInt(data.poseIdx,10);\n"
+            "  var label=String(data.label||('Mol '+String(idx)));\n"
+            "  _runPosePopupCommand(String(data.action||'show'),idx,label,!!data.checked);\n"
+            "}\n"
+            "function _syncPoseOverlayToPopup(idx,label,checked){\n"
+            "  return _sendPosePopupCommand('overlay',idx,label,checked);\n"
+            "}\n"
             "function _openPoseVisualizerWindow(idx,label){\n"
-            "  if(_isPosePopupMode()){if(typeof _renderPoseFromIndex==='function'){_renderPoseFromIndex(idx,label);}return;}\n"
+            "  if(_isPosePopupMode()){if(typeof _showPoseFromIndex==='function'){_showPoseFromIndex(idx,label);}else if(typeof _renderPoseFromIndex==='function'){_renderPoseFromIndex(idx,label);}return;}\n"
             "  var popupUrl=_buildPosePopupUrl(idx,label);\n"
-            "  var popup=window.open(popupUrl,'rgroup_pose_visualizer','popup=yes,width=1400,height=900,resizable=yes,scrollbars=yes');\n"
+            "  var popup=_getPosePopupWindow();\n"
+            "  if(popup&&_sendPosePopupCommand('show',idx,label)){try{popup.focus();}catch(_e){}return;}\n"
+            "  if(!popup){popup=window.open(popupUrl,'rgroup_pose_visualizer','popup=yes,width=1400,height=900,resizable=yes,scrollbars=yes');}\n"
             "  if(popup){\n"
+            "    _POSE_POPUP_REF=popup;\n"
             "    try{popup.location.replace(popupUrl);}catch(_e){}\n"
             "    try{popup.focus();}catch(_e){}\n"
+            "  }else if(typeof _showPoseFromIndex==='function'){\n"
+            "    _showPoseFromIndex(idx,label);\n"
             "  }else if(typeof _renderPoseFromIndex==='function'){\n"
             "    _renderPoseFromIndex(idx,label);\n"
             "  }\n"
@@ -1845,11 +1877,10 @@ def write_html_report(
             "  var raw=String(window.location.hash||'').replace(/^#/,'');\n"
             "  if(!raw){return;}\n"
             "  var hashParams=new URLSearchParams(raw);\n"
+            "  var action=hashParams.get('action')||'show';\n"
             "  var idx=parseInt(hashParams.get('poseIdx')||'-1',10);\n"
             "  var label=hashParams.get('label')||('Mol '+String(idx));\n"
-            "  if(!(idx>=0)){return;}\n"
-            "  document.title='Docking Visualizer';\n"
-            "  if(typeof _renderPoseFromIndex==='function'){_renderPoseFromIndex(idx,label);}\n"
+            "  _runPosePopupCommand(action,idx,label,hashParams.get('checked')==='1');\n"
             "}\n"
             "function _decodeBase64ToUint8Array(base64Text){\n"
             "  var binary=window.atob(base64Text);\n"
@@ -2411,7 +2442,7 @@ def write_html_report(
             "  if(resetPage){_CENTRAL_RENDER_STATE.page=0;}\n"
             "  _renderCentralPage();\n"
             "}\n"
-            "if(_isPosePopupMode()){window.addEventListener('hashchange',_consumePosePopupRequestFromHash);window.addEventListener('load',_consumePosePopupRequestFromHash);}\n"
+            "if(_isPosePopupMode()){window.addEventListener('hashchange',_consumePosePopupRequestFromHash);window.addEventListener('load',_consumePosePopupRequestFromHash);window.addEventListener('message',_consumePosePopupMessage);}\n"
             "function _clearStructureHighlighting(){\n"
             "  document.querySelectorAll('#central-idea-grid .idea-card,.card[id^=\"dd-\"]').forEach(function(el){\n"
             "    el.classList.remove('structure-match-active');\n"
