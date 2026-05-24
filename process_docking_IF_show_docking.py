@@ -86,6 +86,18 @@ from shared_utils import hash_text, normalize_id, safe_float
 
 # Module-level Uncharger for pH-7 neutrality (reuse to avoid per-call overhead).
 _UNCHARGER = rdMolStandardize.Uncharger()
+DEFAULT_SCORE_WEIGHT = 0.4
+DEFAULT_INTERACTION_WEIGHT = 0.6
+DEFAULT_BINDING_SITE_RADIUS = 4.0
+DEFAULT_POCKET_STICKS = True
+DEFAULT_EXCLUDE_MATCH_MODE = "substructure"
+
+_FILTER_PROP_CANDIDATES = {
+    "mol_wt": ["molecular_weight", "MolecularWeight", "MW", "mol_wt"],
+    "rot_bonds": ["Rotatable_bonds", "RotatableBonds", "RotBonds", "rot_bonds"],
+    "hbd": ["Hydrogen bond donors", "HydrogenBondDonors", "HBD", "hbd"],
+    "hba": ["Hydrogen bond acceptors", "HydrogenBondAcceptors", "HBA", "hba"],
+}
 
 
 def eprint(*args, **kwargs):
@@ -319,6 +331,16 @@ def first_present_prop(mol, prop_names):
     return None, None
 
 
+def first_present_numeric_prop(mol, prop_names):
+    for p in prop_names:
+        if not mol.HasProp(p):
+            continue
+        value = safe_float(mol.GetProp(p))
+        if value is not None:
+            return value, p
+    return None, None
+
+
 def mol_name(mol, idx, id_prop=None):
     if id_prop and mol.HasProp(id_prop):
         v = mol.GetProp(id_prop).strip()
@@ -497,6 +519,24 @@ def descriptor_dict(mol):
             "is_neutral_ph7": None,
             "fsp3": None,
         }
+
+
+def filter_values_from_sdf_or_descriptors(mol, descriptors):
+    mw, mw_src = first_present_numeric_prop(mol, _FILTER_PROP_CANDIDATES["mol_wt"])
+    rot, rot_src = first_present_numeric_prop(mol, _FILTER_PROP_CANDIDATES["rot_bonds"])
+    hbd, hbd_src = first_present_numeric_prop(mol, _FILTER_PROP_CANDIDATES["hbd"])
+    hba, hba_src = first_present_numeric_prop(mol, _FILTER_PROP_CANDIDATES["hba"])
+
+    return {
+        "filter_mol_wt": mw if mw is not None else descriptors.get("mol_wt"),
+        "filter_rot_bonds": rot if rot is not None else descriptors.get("rot_bonds"),
+        "filter_hbd": hbd if hbd is not None else descriptors.get("hbd"),
+        "filter_hba": hba if hba is not None else descriptors.get("hba"),
+        "filter_mol_wt_source": mw_src or "rdkit",
+        "filter_rot_bonds_source": rot_src or "rdkit",
+        "filter_hbd_source": hbd_src or "rdkit",
+        "filter_hba_source": hba_src or "rdkit",
+    }
 
 
 # SDF property names to extract for the HTML properties panel.
@@ -689,7 +729,7 @@ def build_manifest(args, n_mols, n_scaffolds):
 
 
 def process_sdf_chunk(sdf_path, indices, score_props, id_prop, cluster_prop,
-                      exclude_smiles_list, generate_images, exclude_match_mode):
+                      exclude_smiles_list, generate_images):
     """Process a list of molecule indices from an SDF file.
 
     Top-level (picklable) worker for ProcessPoolExecutor.
@@ -726,7 +766,7 @@ def process_sdf_chunk(sdf_path, indices, score_props, id_prop, cluster_prop,
         except Exception:
             pass
 
-        hit = match_exclusion_pattern(mol, local_patterns, mode=exclude_match_mode)
+        hit = match_exclusion_pattern(mol, local_patterns, mode=DEFAULT_EXCLUDE_MATCH_MODE)
         if hit is not None:
             excluded_count += 1
             excluded_counter[hit["canonical"]] += 1
@@ -764,6 +804,9 @@ def process_sdf_chunk(sdf_path, indices, score_props, id_prop, cluster_prop,
         except Exception:
             mol_png = None
 
+        descriptors = descriptor_dict(mol)
+        filter_values = filter_values_from_sdf_or_descriptors(mol, descriptors)
+
         rows.append(
             {
                 "mol_index": i,
@@ -779,7 +822,8 @@ def process_sdf_chunk(sdf_path, indices, score_props, id_prop, cluster_prop,
                 "substitution_signature": sub_sig,
                 "substitution_map": dict(pos_map),
                 "mol_png_b64": mol_png,
-                **descriptor_dict(mol),
+                **descriptors,
+                **filter_values,
             }
         )
 
@@ -1184,7 +1228,6 @@ def _stage_sdf_parse(args, exclude_patterns, exclude_meta, run_started):
                     args.cluster_prop,
                     exclude_smiles_list,
                     args.generate_all_mol_images,
-                    args.exclude_match_mode,
                 ): cidx
                 for cidx, chunk in enumerate(chunks)
             }
@@ -1224,7 +1267,7 @@ def _stage_sdf_parse(args, exclude_patterns, exclude_meta, run_started):
             except Exception:
                 pass
 
-            hit = match_exclusion_pattern(mol, exclude_patterns, mode=args.exclude_match_mode)
+            hit = match_exclusion_pattern(mol, exclude_patterns, mode=DEFAULT_EXCLUDE_MATCH_MODE)
             if hit is not None:
                 excluded_by_smiles_rules += 1
                 excluded_pattern_counter[hit["canonical"]] += 1
@@ -1265,6 +1308,9 @@ def _stage_sdf_parse(args, exclude_patterns, exclude_meta, run_started):
             except Exception:
                 mol_png = None
 
+            descriptors = descriptor_dict(mol)
+            filter_values = filter_values_from_sdf_or_descriptors(mol, descriptors)
+
             rows.append(
                 {
                     "mol_index": i,
@@ -1280,7 +1326,8 @@ def _stage_sdf_parse(args, exclude_patterns, exclude_meta, run_started):
                     "substitution_signature": sub_sig,
                     "substitution_map": dict(pos_map),
                     "mol_png_b64": mol_png,
-                    **descriptor_dict(mol),
+                    **descriptors,
+                    **filter_values,
                 }
             )
 
@@ -1333,11 +1380,14 @@ def _stage_merge_and_rank(mol_df, args, run_started, merge_stats):
     mol_df, report_mol_df, merge_counts, precluster_hbd_violations = merge_and_rank_molecules(
         mol_df,
         ext_df,
-        score_weight=args.score_weight,
-        interaction_weight=args.interaction_weight,
-        max_hbd=args.max_hbd,
-        max_rot_bonds=args.max_rot_bonds,
-        neutral_only=args.neutral_only,
+        score_weight=DEFAULT_SCORE_WEIGHT,
+        interaction_weight=DEFAULT_INTERACTION_WEIGHT,
+        max_molecular_weight=args.max_molecular_weight,
+        max_hbd=args.max_hbond_donors,
+        max_hba=args.max_hbond_acceptors,
+        max_rot_bonds=args.max_rotatable_bonds,
+        max_formal_charge=None,
+        neutral_only=False,
     )
     merge_stats.update(merge_counts)
     progress_log(
@@ -1347,7 +1397,7 @@ def _stage_merge_and_rank(mol_df, args, run_started, merge_stats):
     )
     if precluster_hbd_violations > 0:
         eprint(
-            f"Warning: report pool contains {precluster_hbd_violations} molecules above HBD threshold ({args.max_hbd}) before scaffold clustering."
+            f"Warning: report pool contains {precluster_hbd_violations} molecules above HBD threshold ({args.max_hbond_donors}) before scaffold clustering."
         )
 
     return mol_df, report_mol_df, merge_stats, precluster_hbd_violations
@@ -1488,7 +1538,7 @@ def _stage_export_and_report(
     grouped_sar = list(report_mol_df.groupby("scaffold_id", dropna=False))
     total_sar_groups = len(grouped_sar)
     n_workers = max(1, int(args.n_workers) if args.n_workers > 0 else (os.cpu_count() or 2))
-    io_workers = int(args.csv_io_workers) if int(args.csv_io_workers) > 0 else max(4, min(32, (os.cpu_count() or 4) * 2))
+    io_workers = n_workers
 
     if n_workers > 1 and total_sar_groups > 1:
         progress_log(run_started, "Per-scaffold CSV export", extra=f"parallel workers={n_workers}")
@@ -1523,7 +1573,9 @@ def _stage_export_and_report(
 
     # QC summary.
     merge_stats["report_pool_size"] = int(len(report_mol_df))
+    merge_stats["excluded_molecular_weight"] = int((~mol_df["passes_mol_weight_filter"]).sum())
     merge_stats["excluded_hbd"] = int((~mol_df["passes_hbd_filter"]).sum())
+    merge_stats["excluded_hba"] = int((~mol_df["passes_hba_filter"]).sum())
     merge_stats["excluded_rot_bonds"] = int((~mol_df["passes_rotb_filter"]).sum())
     merge_stats["excluded_charged"] = int((~mol_df["passes_neutral_filter"]).sum())
     merge_stats["excluded_any_rule"] = int((~mol_df["report_eligible"]).sum())
@@ -1603,8 +1655,8 @@ def _stage_export_and_report(
         protein_ss_map=protein_ss_map,
         protein_sources=protein_sources,
         pose_sdf_by_index=pose_sdf_by_index,
-        binding_site_radius=args.binding_site_radius,
-        default_pocket_sticks=args.default_pocket_sticks,
+        binding_site_radius=DEFAULT_BINDING_SITE_RADIUS,
+        default_pocket_sticks=DEFAULT_POCKET_STICKS,
         hbond_residue_options=hbond_residue_options,
         scaffold_hbond_map=scaffold_hbond_map,
         ref_ligand_sdf=getattr(args, "ref_ligand_sdf", None),
@@ -1628,8 +1680,11 @@ def main():
     # Setup phase: parse CLI, initialize output layout, load exclusion patterns.
     ap = build_cli_parser()
     args = ap.parse_args()
-    if args.allow_charged:
-        args.neutral_only = False
+
+    if getattr(args, "ref_ligand_sdf", None):
+        args.ref_ligand_sdf = os.path.abspath(args.ref_ligand_sdf)
+        if not os.path.exists(args.ref_ligand_sdf):
+            eprint(f"Warning: reference ligand SDF not found: {args.ref_ligand_sdf}")
 
     output_layout = initialize_output_layout(args.outdir, args.file_prefix)
     removed_prefixed = output_layout["removed_prefixed"]

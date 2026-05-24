@@ -1040,6 +1040,7 @@ def write_html_report(
     figures,
     scaffold_export_data=None,
     report_filename="report.html",
+    min_group_size=3,
     top_per_scaffold=12,
     max_scaffolds_in_report=15,
     global_reference_smiles=None,
@@ -1060,6 +1061,10 @@ def write_html_report(
 ):
     html_path = os.path.join(outdir, report_filename)
     structure_assets = ensure_structure_search_assets(outdir)
+    if central_df is not None and not central_df.empty and "n_members" in central_df.columns:
+        central_df = central_df.loc[
+            pd.to_numeric(central_df["n_members"], errors="coerce") >= float(min_group_size)
+        ].copy()
     if not global_reference_smiles and scaf_df is not None and not scaf_df.empty:
         from scaffold_summary_helpers import select_depiction_reference_smiles
         global_reference_smiles = select_depiction_reference_smiles(scaf_df)
@@ -1559,7 +1564,11 @@ def write_html_report(
             )
 
         fh.write("<section class='panel'><h2>Central Ideas</h2>")
-        fh.write("<p class='smalltxt'>Frequent motifs with broad substitution support and strong quality. Use the pose IDs below to pull the original docking poses.</p>")
+        fh.write(
+            f"<p class='smalltxt'>Frequent motifs with broad substitution support and strong quality. "
+            f"This list is constrained to scaffolds with <b>member_count &gt;= {int(min_group_size)}</b>. "
+            f"Use the pose IDs below to pull the original docking poses.</p>"
+        )
         if report_hbd_violations > 0:
             fh.write(
                 f"<p class='smalltxt' style='color:#b42318;'><b>Warning:</b> {report_hbd_violations} report molecules exceed current HBD limit and should be inspected.</p>"
@@ -1660,6 +1669,9 @@ def write_html_report(
         fh.write("</section>")
 
         fh.write("<section class='panel'><h2>Scaffold Deep Dive (Central Ideas)</h2>")
+        fh.write(
+            f"<p class='smalltxt'>Only Central Idea scaffolds with <b>member_count &gt;= {int(min_group_size)}</b> are included in this deep-dive section.</p>"
+        )
         fh.write("<div id='deep-dive-shell' class='lazy-placeholder'>Open a central scaffold card to render its deep dive.</div>")
         fh.write("</section>")
         # Emit deep-dive HTML as <template> elements so the browser HTML-parser handles them

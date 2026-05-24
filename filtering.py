@@ -37,16 +37,53 @@ def druglike_score_from_row(row):
     return weighted_present(parts)
 
 
-def apply_report_filters(df, max_hbd=None, max_rot_bonds=None, neutral_only=None):
+def apply_report_filters(
+    df,
+    max_molecular_weight=None,
+    max_hbd=None,
+    max_hba=None,
+    max_rot_bonds=None,
+    max_formal_charge=None,
+    neutral_only=None,
+):
     out = df.copy()
+
+    def _series_for(primary_col, fallback_col):
+        if primary_col in out.columns:
+            return out[primary_col]
+        if fallback_col in out.columns:
+            return out[fallback_col]
+        return pd.Series([None] * len(out), index=out.index)
+
+    mol_wt_series = _series_for("filter_mol_wt", "mol_wt")
+    hbd_series = _series_for("filter_hbd", "hbd")
+    hba_series = _series_for("filter_hba", "hba")
+    rot_bonds_series = _series_for("filter_rot_bonds", "rot_bonds")
+
+    if max_molecular_weight is not None:
+        out["passes_mol_weight_filter"] = mol_wt_series.map(
+            lambda x: (x is not None) and (not pd.isna(x)) and (x <= max_molecular_weight)
+        )
+    else:
+        out["passes_mol_weight_filter"] = True
     if max_hbd is not None:
-        out["passes_hbd_filter"] = out["hbd"].map(lambda x: (x is not None) and (not pd.isna(x)) and (x <= max_hbd))
+        out["passes_hbd_filter"] = hbd_series.map(lambda x: (x is not None) and (not pd.isna(x)) and (x <= max_hbd))
     else:
         out["passes_hbd_filter"] = True
+    if max_hba is not None:
+        out["passes_hba_filter"] = hba_series.map(lambda x: (x is not None) and (not pd.isna(x)) and (x <= max_hba))
+    else:
+        out["passes_hba_filter"] = True
     if max_rot_bonds is not None:
-        out["passes_rotb_filter"] = out["rot_bonds"].map(lambda x: (x is not None) and (not pd.isna(x)) and (x <= max_rot_bonds))
+        out["passes_rotb_filter"] = rot_bonds_series.map(lambda x: (x is not None) and (not pd.isna(x)) and (x <= max_rot_bonds))
     else:
         out["passes_rotb_filter"] = True
+    if max_formal_charge is not None:
+        out["passes_formal_charge_filter"] = out["filter_formal_charge"].map(
+            lambda x: (x is not None) and (not pd.isna(x)) and (abs(float(x)) <= max_formal_charge)
+        )
+    else:
+        out["passes_formal_charge_filter"] = True
     if neutral_only:
         if "is_neutral_ph7" in out.columns:
             out["passes_neutral_filter"] = out["is_neutral_ph7"].map(lambda x: x is True)
@@ -57,14 +94,27 @@ def apply_report_filters(df, max_hbd=None, max_rot_bonds=None, neutral_only=None
     else:
         out["passes_neutral_filter"] = True
 
-    out["report_eligible"] = out["passes_hbd_filter"] & out["passes_rotb_filter"] & out["passes_neutral_filter"]
+    out["report_eligible"] = (
+        out["passes_mol_weight_filter"]
+        & out["passes_hbd_filter"]
+        & out["passes_hba_filter"]
+        & out["passes_rotb_filter"]
+        & out["passes_formal_charge_filter"]
+        & out["passes_neutral_filter"]
+    )
     reasons = []
     for _, row in out.iterrows():
         tags = []
+        if not row["passes_mol_weight_filter"]:
+            tags.append("molecular_weight")
         if not row["passes_hbd_filter"]:
             tags.append("hbd")
+        if not row["passes_hba_filter"]:
+            tags.append("hba")
         if not row["passes_rotb_filter"]:
             tags.append("rot_bonds")
+        if not row["passes_formal_charge_filter"]:
+            tags.append("formal_charge")
         if not row["passes_neutral_filter"]:
             tags.append("charged")
         reasons.append(";".join(tags))

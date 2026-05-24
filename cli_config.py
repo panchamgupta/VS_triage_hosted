@@ -46,28 +46,26 @@ def cleanup_prefixed_outputs(outdir, prefix, subdirs=None):
 
 def build_cli_parser():
     ap = argparse.ArgumentParser(description="Analyze docking SDF plus interaction counts to identify central scaffold ideas.")
-    ap.add_argument("--input", required=True, help="Input SDF file")
-    ap.add_argument("--outdir", default="rgroup_report", help="Output directory")
-    ap.add_argument("--file-prefix", default="", help="Optional prefix applied to output filenames so multiple runs can share one output directory")
-    ap.add_argument("--interaction-csv", default="direct_linker_filtered.csv", help="CSV with interaction_count by ligand ID (Title column)")
-    ap.add_argument("--interaction-id-col", default="Title", help="Ligand ID column name in interaction CSV")
-    ap.add_argument("--interaction-count-col", default="interaction_count", help="Interaction count column in interaction CSV")
-    ap.add_argument("--id-prop", default=None, help="Preferred SD tag for molecule identifier")
+    ap.add_argument("-i", "--input", required=True, help="Input SDF file")
+    ap.add_argument("-o", "--outdir", default="rgroup_report", help="Output directory")
+    ap.add_argument("-f", "--file-prefix", default="", help="Optional prefix applied to output filenames so multiple runs can share one output directory")
+    ap.add_argument("-c", "--interaction-csv", default="direct_linker_filtered.csv", help="CSV with interaction_count by ligand ID (Title column)")
+    ap.add_argument("-j", "--interaction-id-col", default="Title", help="Ligand ID column name in interaction CSV")
+    ap.add_argument("-k", "--interaction-count-col", default="interaction_count", help="Interaction count column in interaction CSV")
+    ap.add_argument("-d", "--id-prop", default=None, help="Preferred SD tag for molecule identifier")
     ap.add_argument(
-        "--score-props",
+        "-s", "--score-props",
         nargs="*",
         default=["r_i_docking_score", "r_i_glide_gscore", "glide_gscore", "docking_score", "score", "DockingScore"],
         help="Candidate SD tags for docking score (lower is better)",
     )
-    ap.add_argument("--auto-detect-score", action="store_true", help="Auto-detect additional score-like SD tags")
-    ap.add_argument("--cluster-prop", default=None, help="Optional SD tag containing a cluster ID")
-    ap.add_argument("--score-weight", type=float, default=0.4, help="Weight for docking score in molecule priority")
-    ap.add_argument("--interaction-weight", type=float, default=0.6, help="Weight for interaction term in molecule priority")
-    ap.add_argument("--min-group-size", type=int, default=3, help="Minimum group size for central idea ranking")
-    ap.add_argument("--top-per-scaffold", type=int, default=12, help="Representatives shown per scaffold in HTML")
-    ap.add_argument("--max-scaffolds-in-report", type=int, default=15, help="Maximum scaffold cards in detailed section")
+    ap.add_argument("-a", "--auto-detect-score", action="store_true", help="Auto-detect additional score-like SD tags")
+    ap.add_argument("-l", "--cluster-prop", default=None, help="Optional SD tag containing a cluster ID")
+    ap.add_argument("-g", "--min-group-size", type=int, default=3, help="Minimum group size for central idea ranking")
+    ap.add_argument("-t", "--top-per-scaffold", type=int, default=12, help="Representatives shown per scaffold in HTML")
+    ap.add_argument("-m", "--max-scaffolds-in-report", type=int, default=15, help="Maximum scaffold cards in detailed section")
     ap.add_argument(
-        "--protein-pdb",
+        "-P", "--protein-pdb",
         default=None,
         help=(
             "Optional receptor structure file(s) (.pdb, .cif/.mmcif, or .mol2). "
@@ -77,7 +75,7 @@ def build_cli_parser():
         ),
     )
     ap.add_argument(
-        "--ref-ligand-sdf",
+        "-r", "--ref-ligand-sdf",
         default=None,
         help=(
             "Optional SDF file with one or more reference / crystal ligands (3D coordinates). "
@@ -88,41 +86,36 @@ def build_cli_parser():
         ),
     )
     ap.add_argument(
-        "--binding-site-radius",
+        "-w", "--max-molecular-weight",
         type=float,
-        default=4.0,
-        help="Residue highlight radius in Angstrom around ligand for hover docking viewer.",
+        default=None,
+        help="Maximum molecular weight for report-facing outputs (omit to disable filter)",
     )
     ap.add_argument(
-        "--default-pocket-sticks",
-        dest="default_pocket_sticks",
-        action="store_true",
-        default=True,
-        help="Show binding-site protein residues in sticks by default in the hover docking viewer.",
+        "-b", "--max-rotatable-bonds",
+        type=float,
+        default=None,
+        help="Maximum rotatable bonds for report-facing outputs (omit to disable filter)",
     )
     ap.add_argument(
-        "--no-default-pocket-sticks",
-        dest="default_pocket_sticks",
-        action="store_false",
-        help="Hide binding-site protein residue sticks by default in the hover docking viewer.",
+        "-D", "--max-hbond-donors",
+        type=float,
+        default=None,
+        help="Maximum hydrogen bond donors for report-facing outputs (omit to disable filter)",
     )
-    ap.add_argument("--max-hbd", type=float, default=None, help="Maximum H-bond donors for report-facing outputs (omit to disable filter)")
-    ap.add_argument("--max-rot-bonds", type=float, default=None, help="Maximum rotatable bonds for report-facing outputs (omit to disable filter)")
-    ap.add_argument("--neutral-only", action="store_const", const=True, default=None, help="Keep only neutral molecules (formal charge 0) in report-facing outputs")
-    ap.add_argument("--allow-charged", action="store_true", help="Disable neutral-only filter for report-facing outputs")
     ap.add_argument(
-        "--exclude-smiles-file",
+        "-A", "--max-hbond-acceptors",
+        type=float,
+        default=None,
+        help="Maximum hydrogen bond acceptors for report-facing outputs (omit to disable filter)",
+    )
+    ap.add_argument(
+        "-e", "--exclude-smiles-file",
         default=None,
         help="Optional text file (one SMILES/motif per line) to exclude molecules by substructure match (e.g., phenol, urea).",
     )
     ap.add_argument(
-        "--exclude-match-mode",
-        default="substructure",
-        choices=["substructure"],
-        help="Matching mode for --exclude-smiles-file. Currently only 'substructure' is supported.",
-    )
-    ap.add_argument(
-        "--generate-all-mol-images",
+        "-G", "--generate-all-mol-images",
         action="store_true",
         help=(
             "Generate base64 PNG for every molecule during SDF parsing. "
@@ -130,7 +123,7 @@ def build_cli_parser():
         ),
     )
     ap.add_argument(
-        "--n-workers",
+        "-n", "--n-workers",
         type=int,
         default=0,
         help=(
@@ -138,15 +131,6 @@ def build_cli_parser():
             "Controls parallelism for SDF parsing, scaffold summary, "
             "per-scaffold SAR tables, scaffold panels, and figure generation. "
             "Set to 1 to disable parallelism entirely."
-        ),
-    )
-    ap.add_argument(
-        "--csv-io-workers",
-        type=int,
-        default=0,
-        help=(
-            "Thread count for CSV file writing (0=auto). "
-            "Increase for many scaffold CSV outputs on fast storage."
         ),
     )
     return ap

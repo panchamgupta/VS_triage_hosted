@@ -68,8 +68,11 @@ def merge_and_rank_molecules(
     *,
     score_weight,
     interaction_weight,
+    max_molecular_weight,
     max_hbd,
+    max_hba,
     max_rot_bonds,
+    max_formal_charge,
     neutral_only,
 ):
     out = mol_df.copy()
@@ -113,7 +116,15 @@ def merge_and_rank_molecules(
     ]
     out["presentation_score"] = out["presentation_score"].fillna(-1.0)
 
-    out = apply_report_filters(out, max_hbd=max_hbd, max_rot_bonds=max_rot_bonds, neutral_only=neutral_only)
+    out = apply_report_filters(
+        out,
+        max_molecular_weight=max_molecular_weight,
+        max_hbd=max_hbd,
+        max_hba=max_hba,
+        max_rot_bonds=max_rot_bonds,
+        max_formal_charge=max_formal_charge,
+        neutral_only=neutral_only,
+    )
     out["presentation_score_final"] = out["presentation_score"]
     out.loc[~out["report_eligible"], "presentation_score_final"] = out.loc[~out["report_eligible"], "presentation_score_final"] - 0.25
     out["presentation_score_final"] = out["presentation_score_final"].fillna(-1.0)
@@ -123,7 +134,7 @@ def merge_and_rank_molecules(
     report_mol_df = out[out["report_eligible"]].copy()
     report_mol_df["priority_rank"] = report_mol_df["priority_score"].rank(method="dense", ascending=False).astype(int)
     precluster_hbd_violations = int(
-        (pd.to_numeric(report_mol_df["hbd"], errors="coerce") > float(max_hbd)).fillna(False).sum()
+        (pd.to_numeric(report_mol_df["filter_hbd"], errors="coerce") > float(max_hbd)).fillna(False).sum()
         if max_hbd is not None else 0
     )
 
