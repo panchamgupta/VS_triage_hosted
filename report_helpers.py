@@ -1457,6 +1457,11 @@ def write_html_report(
             "Users can filter scaffolds by chemical structure using SMILES or SMARTS queries in substructure or exact match modes, with examples and reset options provided.</li>"
         )
         fh.write(
+            "<li><b>Exclusion motif filtering:</b> "
+            "The Exclude Motif panel removes matching molecules globally from central member counts, scaffold SDF exports, and deep-dive tiles. "
+            "Multiple exclusion motifs can be active at once, can be scoped to HTML subset or all report-eligible molecules, and can be cleared with Reset Exclusion.</li>"
+        )
+        fh.write(
             "<li><b>Hydrogen-bond residue filtering:</b> "
             "The report allows filtering scaffolds based on contacting specific protein residues using AND logic, facilitating selection of molecules interacting with key residues.</li>"
         )
@@ -1521,7 +1526,7 @@ def write_html_report(
         fh.write("<button type='button' class='primary' id='structure-search-run'>Search</button>")
         fh.write("<button type='button' id='structure-search-reset'>Reset Search</button>")
         fh.write("</div>")
-        fh.write("<div class='structure-search-status' id='structure-search-status' data-tone='ready'><span class='search-status-line'>Central ideas load first. RDKit search loads on first use.</span><span class='search-scope-badge' id='structure-search-scope-badge'>Scope: HTML subset</span><div class='search-progress-track'><div class='search-progress-fill' id='structure-search-progress-fill'></div></div></div>")
+        fh.write("<div class='structure-search-status' id='structure-search-status' data-tone='ready'><span class='search-status-line'>Central ideas load first. RDKit search loads on first use.</span><span class='search-scope-badge' id='structure-search-scope-badge'></span><div class='search-progress-track'><div class='search-progress-fill' id='structure-search-progress-fill'></div></div></div>")
         fh.write("</div></details></section>")
 
         fh.write("<section class='panel structure-search-panel'><details open>")
@@ -1988,12 +1993,14 @@ def write_html_report(
             "  return scope==='all_report_eligible'?'all report-eligible molecules':'HTML page subset';\n"
             "}\n"
             "function _scopeBadgeLabel(scope){\n"
-            "  return scope==='all_report_eligible'?'Scope: All report-eligible':'Scope: HTML subset';\n"
+            "  return scope==='all_report_eligible'?'Scope: All report-eligible':'';\n"
             "}\n"
             "function _updateStructureScopeBadge(scope){\n"
             "  var badge=document.getElementById('structure-search-scope-badge');\n"
             "  if(!badge){return;}\n"
-            "  badge.textContent=_scopeBadgeLabel(scope);\n"
+            "  var text=_scopeBadgeLabel(scope);\n"
+            "  badge.textContent=text;\n"
+            "  badge.style.display=text?'inline-flex':'none';\n"
             "}\n"
             "function _ensureStructureLibrary(scope){\n"
             "  var key=(scope==='all_report_eligible')?'all_report_eligible':'html_subset';\n"
