@@ -30,12 +30,6 @@ The recommended entry point is the shell wrapper:
 bash run_show_docking.sh
 ```
 
-For short-flag usage, use:
-
-```bash
-bash run_show_docking_shortflags.sh
-```
-
 Both scripts call process_docking_IF_show_docking.py with project-typical inputs. You can also run the Python script directly.
 
 Long-flag example:
@@ -58,28 +52,6 @@ python process_docking_IF_show_docking.py \
   --max-scaffolds-in-report 25 \
   --n-workers 8 \
   --outdir ./
-```
-
-Short-flag example:
-
-```bash
-python process_docking_IF_show_docking.py \
-  -i direct_linker_enumeration_docking_pose_all_BB_with_props.sdf \
-  -c direct_linker_all_IF.csv \
-  -j Title \
-  -k interaction_count \
-  -P 6782_protein.pdb \
-  -r ref_structures.sdf \
-  -e exclude_motifs.smi \
-  -w 800 \
-  -b 13 \
-  -D 2 \
-  -A 10 \
-  -f VS_visualization_05052026 \
-  -t 10 \
-  -m 25 \
-  -n 8 \
-  -o ./
 ```
 
 ## CLI Reference
