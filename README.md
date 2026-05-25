@@ -32,7 +32,19 @@ bash run_show_docking.sh
 
 Both scripts call process_docking_IF_show_docking.py with project-typical inputs. You can also run the Python script directly.
 
-Long-flag example:
+Long-flag core-input example:
+
+```bash
+python process_docking_IF_show_docking.py \
+  --input direct_linker_enumeration_docking_pose_all_BB_with_props.sdf \
+  --interaction-csv direct_linker_all_IF.csv \
+  --interaction-id-col Title \
+  --interaction-count-col interaction_count \
+  --outdir ./ \
+  --file-prefix VS_visualization_05232026
+```
+
+Long-flag example with protein, reference, filters, and report-size tuning:
 
 ```bash
 python process_docking_IF_show_docking.py \
@@ -58,37 +70,37 @@ python process_docking_IF_show_docking.py \
 
 ### Core Inputs and Outputs
 
-- -i, --input: input docking SDF file (required)
-- -o, --outdir: output directory
-- -f, --file-prefix: prefix for output filenames
-- -c, --interaction-csv: interaction count CSV
-- -j, --interaction-id-col: ligand ID column in interaction CSV
-- -k, --interaction-count-col: interaction-count column in interaction CSV
-- -d, --id-prop: preferred SD tag for molecule identifier
-- -l, --cluster-prop: optional SD tag containing pre-assigned cluster ID
+- --input: input docking SDF file (required)
+- --outdir: output directory
+- --file-prefix: prefix for output filenames
+- --interaction-csv: interaction count CSV
+- --interaction-id-col: ligand ID column in interaction CSV
+- --interaction-count-col: interaction-count column in interaction CSV
+- --id-prop: preferred SD tag for molecule identifier
+- --cluster-prop: optional SD tag containing pre-assigned cluster ID
 
 ### Scoring and Scaffold Controls
 
-- -s, --score-props: candidate SD tags for docking score
-- -a, --auto-detect-score: auto-detect score-like SD tags
-- -g, --min-group-size: minimum group size for central idea ranking
-- -t, --top-per-scaffold: representatives shown per scaffold in report
-- -m, --max-scaffolds-in-report: scaffold cards shown in detailed section
+- --score-props: candidate SD tags for docking score
+- --auto-detect-score: auto-detect score-like SD tags
+- --min-group-size: minimum group size for central idea ranking
+- --top-per-scaffold: representatives shown per scaffold in report
+- --max-scaffolds-in-report: scaffold cards shown in detailed section
 
 ### Structures and Filters
 
-- -P, --protein-pdb: one or more receptor files (.pdb, .cif/.mmcif, .mol2)
-- -r, --ref-ligand-sdf: optional reference ligand SDF for viewer overlays
-- -e, --exclude-smiles-file: motifs to exclude (substructure match)
-- -w, --max-molecular-weight: report max molecular weight filter
-- -b, --max-rotatable-bonds: report max rotatable bonds filter
-- -D, --max-hbond-donors: report max hydrogen bond donors filter
-- -A, --max-hbond-acceptors: report max hydrogen bond acceptors filter
+- --protein-pdb: one or more receptor files (.pdb, .cif/.mmcif, .mol2)
+- --ref-ligand-sdf: optional reference ligand SDF for viewer overlays
+- --exclude-smiles-file: motifs to exclude (substructure match)
+- --max-molecular-weight: report max molecular weight filter
+- --max-rotatable-bonds: report max rotatable bonds filter
+- --max-hbond-donors: report max hydrogen bond donors filter
+- --max-hbond-acceptors: report max hydrogen bond acceptors filter
 
 ### Performance and Rendering
 
-- -G, --generate-all-mol-images: eagerly generate all molecule images
-- -n, --n-workers: worker count (0 means auto-detect)
+- --generate-all-mol-images: eagerly generate all molecule images
+- --n-workers: worker count (0 means auto-detect)
 
 ## Important Defaults
 
@@ -132,7 +144,6 @@ These options are now fixed in code (not exposed as CLI flags):
 - `docking_pose_visualizer_block.py`: embedded viewer JavaScript generation.
 - `report_assets/` and `sdf-viewer-offline/`: offline visualization assets.
 - `run_show_docking.sh`: example launch script.
-- `run_show_docking_shortflags.sh`: short-flag launch script.
 
 ## Dependencies / Requirements
 
@@ -151,7 +162,7 @@ These options are now fixed in code (not exposed as CLI flags):
   - Use an absolute path if running from another working directory.
   - Check stderr for warning: reference ligand SDF not found.
 - No molecules after filtering:
-  - Relax one or more max filters (-w, -b, -D, -A).
+  - Relax one or more max filters (--max-molecular-weight, --max-rotatable-bonds, --max-hbond-donors, --max-hbond-acceptors).
 - Exclusion motifs remove too many molecules:
   - Review exclude_motifs.smi patterns and test with fewer motifs first.
 

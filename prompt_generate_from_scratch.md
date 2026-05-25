@@ -24,7 +24,6 @@ Follow the implementation in stepwise phases below. Keep tasks grouped by simila
   - progress_tracking.py
 - Add shell wrappers:
   - run_show_docking.sh
-  - run_show_docking_shortflags.sh
 - Add README.md with setup and usage examples.
 - Target dependencies:
   - rdkit, pandas, numpy, matplotlib
@@ -33,7 +32,7 @@ Follow the implementation in stepwise phases below. Keep tasks grouped by simila
 ### Phase 2: CLI and Configuration Layer
 
 - Build argparse parser in cli_config.py.
-- Support both long and one-letter flags for all user-exposed arguments.
+- Support long flags for all user-exposed arguments and document usage with long-flag examples only.
 - Implement grouped argument sets:
   - Core I/O: input SDF, output dir, prefix
   - Interaction CSV mapping: CSV path, ID column, interaction count column
@@ -109,6 +108,12 @@ Follow the implementation in stepwise phases below. Keep tasks grouped by simila
   - support overlay with docked ligands
 - Ensure pose SDF blocks are mapped by index and available to JS.
 - Include offline viewer assets in report output.
+- Implement current docking viewer responsiveness behavior:
+  - interaction cache keyed by protein source + pose index + binding radius
+  - style-only rerender path for control toggles when geometry does not change
+  - deferred interaction dash drawing on next frame after core model render
+  - debounced slider-driven rerenders (~120 ms)
+  - console timing markers for pose open total, pocket detection, hbond computation, pipi computation, and full rerender after control toggle
 
 ### Phase 7: Parallelism, Performance, and Stability
 
@@ -120,7 +125,7 @@ Follow the implementation in stepwise phases below. Keep tasks grouped by simila
 
 ### Phase 8: Validation and Deliverables
 
-- Validate CLI end-to-end with sample commands (long and short flags).
+- Validate CLI end-to-end with sample commands using long flags only.
 - Ensure generated report includes:
   - functioning scaffold cards and deep dive sections
   - working docking pose visualizer
@@ -129,6 +134,15 @@ Follow the implementation in stepwise phases below. Keep tasks grouped by simila
   - fully runnable scripts and modules
   - README with setup and troubleshooting
   - sample run scripts
+
+### CLI Example Requirements
+
+- Include one long-flag example that lists core inputs only.
+- Include additional long-flag examples for common scenarios:
+  - protein/receptor plus reference ligand overlay
+  - motif exclusion and property thresholds
+  - scaffold/report-size and worker tuning
+- Do not include short-flag examples in README, prompts, or tutorial text.
 
 ### Quality Constraints
 

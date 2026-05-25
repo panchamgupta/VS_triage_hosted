@@ -2,6 +2,70 @@
 
 This tutorial explains how to use the generated report page effectively for hit triage, scaffold-level analysis, and docking-pose inspection.
 
+## 0. Generate the Report (Long-Flag Examples Only)
+
+Use long flags when running the pipeline.
+
+### 0.1 Core Inputs Example
+
+```bash
+python process_docking_IF_show_docking.py \
+  --input direct_linker_enumeration_docking_pose_all_BB_with_props.sdf \
+  --interaction-csv direct_linker_all_IF.csv \
+  --interaction-id-col Title \
+  --interaction-count-col interaction_count \
+  --outdir ./ \
+  --file-prefix VS_visualization_05232026
+```
+
+### 0.2 Other Common Examples
+
+Include protein context and reference overlay:
+
+```bash
+python process_docking_IF_show_docking.py \
+  --input direct_linker_enumeration_docking_pose_all_BB_with_props.sdf \
+  --interaction-csv direct_linker_all_IF.csv \
+  --interaction-id-col Title \
+  --interaction-count-col interaction_count \
+  --protein-pdb 6782_protein.pdb \
+  --ref-ligand-sdf ref_structures.sdf \
+  --outdir ./ \
+  --file-prefix VS_visualization_05232026
+```
+
+Apply report-facing property and motif filters:
+
+```bash
+python process_docking_IF_show_docking.py \
+  --input direct_linker_enumeration_docking_pose_all_BB_with_props.sdf \
+  --interaction-csv direct_linker_all_IF.csv \
+  --interaction-id-col Title \
+  --interaction-count-col interaction_count \
+  --exclude-smiles-file exclude_motifs.smi \
+  --max-molecular-weight 800 \
+  --max-rotatable-bonds 13 \
+  --max-hbond-donors 2 \
+  --max-hbond-acceptors 10 \
+  --outdir ./ \
+  --file-prefix VS_visualization_05232026
+```
+
+Tune scaffold/report size and worker parallelism:
+
+```bash
+python process_docking_IF_show_docking.py \
+  --input direct_linker_enumeration_docking_pose_all_BB_with_props.sdf \
+  --interaction-csv direct_linker_all_IF.csv \
+  --interaction-id-col Title \
+  --interaction-count-col interaction_count \
+  --top-per-scaffold 10 \
+  --max-scaffolds-in-report 25 \
+  --n-workers 8 \
+  --outdir ./ \
+  --file-prefix VS_visualization_05232026
+```
+
 ## 1. Open the Report and Orient Yourself
 
 - Open the generated report HTML file in a modern browser.
@@ -130,6 +194,19 @@ If dropdown is empty:
 
 - Use the protein-source selector to switch receptor structures.
 - Compare pose stability across proteins before selecting synthesis candidates.
+
+### 5.5 Performance Behavior in Current Viewer
+
+- First pose open now prioritizes fast model display and defers interaction dash drawing to the next frame.
+- Control changes (palette, opacity, interaction toggles) use style-only rerender paths where possible.
+- Interaction summaries are cached by protein source, pose index, and binding radius.
+- Slider-driven controls are debounced to avoid unnecessary full rerenders while dragging.
+- Console timing markers are emitted for:
+  - pose open total
+  - pocket detection
+  - hbond computation
+  - pipi computation
+  - full rerender after control toggle
 
 ## 6. Recommended End-to-End Review Playbook
 
