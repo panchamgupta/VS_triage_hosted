@@ -133,6 +133,24 @@ def build_cli_parser():
             "Set to 1 to disable parallelism entirely."
         ),
     )
+    ap.add_argument(
+        "--numeric-sd-props",
+        nargs="*",
+        default=[],
+        help=(
+            "Additional numeric SD properties to include in the Molecule Properties panel "
+            "(space-separated names)."
+        ),
+    )
+    ap.add_argument(
+        "--text-sd-props",
+        nargs="*",
+        default=[],
+        help=(
+            "Additional text SD properties to expose as checkbox filter tabs in the Molecule "
+            "Properties panel (space-separated names)."
+        ),
+    )
     return ap
 
 

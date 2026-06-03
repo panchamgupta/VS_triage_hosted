@@ -76,7 +76,7 @@ except Exception:
     pa_csv = None
 
 from cli_config import build_cli_parser, initialize_output_layout, prefixed_output_name, resolve_score_props
-from export_helpers import collect_scaffold_export_data, flush_pending_csv_writes, make_central_barplot, make_central_structure_overview, make_qc_summary, make_residue_heatmap, make_scatter_plot, read_sdf_blocks_by_index, sanitize_sdf_blocks_for_viewer, write_dataframe_csv
+from export_helpers import collect_scaffold_export_data, make_central_barplot, make_central_structure_overview, make_qc_summary, make_residue_heatmap, make_scatter_plot, read_sdf_blocks_by_index, sanitize_sdf_blocks_for_viewer, write_dataframe_csv
 from filtering import apply_report_filters, druglike_score_from_row, weighted_present
 from progress_tracking import format_elapsed, progress_log, start_progress_bar, finish_progress_bar
 from report_helpers import build_hbond_residue_filter_data, write_html_report
@@ -539,25 +539,40 @@ def filter_values_from_sdf_or_descriptors(mol, descriptors):
     }
 
 
+def _normalize_sd_prop_list(values):
+    out = []
+    seen = set()
+    for value in values or []:
+        text = str(value or "").strip()
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        out.append(text)
+    return out
+
+
 # SDF property names to extract for the HTML properties panel.
 _REPORT_PROP_NAMES = [
     "GS_LogD", "GS_Sol_74_linear", "GS_CACO2_A2B_10_linear", "GS_CACO2_B2A_10_linear",
     "GS_HP_Free_LT_linear", "GS_CACO2_A2B_1_linear", "GS_CACO2_B2A_1_linear",
     "GS_HP_Free_linear", "GS_Pred_Cl_HLM_linear", "GS_MDCK_linear", "GS_RED_HP_linear",
+    "interaction_count",
     "MW", "cLogP", "TPSA", "HBD", "HBA", "RotBonds", "HeavyAtoms", "FormalCharge",
     "RingCount", "FractionCSP3",
 ]
 
 
-def _extract_mol_props_for_report(sdf_path, mol_df, scaf_df, prop_names, run_started):
+def _extract_mol_props_for_report(sdf_path, mol_df, scaf_df, numeric_prop_names, text_prop_names, run_started):
     """Read named SDF properties for all mol_df molecules; build scaffold→mol_id map.
 
     Returns
     -------
     tuple
-        (mol_props_data, scaffold_mol_map)
-        mol_props_data : {mol_id: [float|None, ...]} value list indexed by prop_names order
+        (mol_props_data, scaffold_mol_map, mol_text_props_data, text_prop_value_counts)
+        mol_props_data : {mol_id: [float|None, ...]} value list indexed by numeric_prop_names order
         scaffold_mol_map : {scaffold_name: [mol_id, ...]} all members per scaffold
+        mol_text_props_data : {mol_id: {prop_name: value_text}}
+        text_prop_value_counts : {prop_name: [{"value": text, "count": n}, ...]}
     """
     # Build scaffold_name map from scaf_df.
     scaf_name_map: dict = {}
@@ -587,8 +602,20 @@ def _extract_mol_props_for_report(sdf_path, mol_df, scaf_df, prop_names, run_sta
     if not idx_to_id:
         return {}, scaffold_mol_map
 
+    interaction_count_map = {}
+    if "mol_id" in mol_df.columns and "interaction_count" in mol_df.columns:
+        for mol_id, count_val in zip(mol_df["mol_id"], mol_df["interaction_count"]):
+            mol_id_txt = str(mol_id)
+            if mol_id_txt in interaction_count_map:
+                continue
+            parsed = safe_float(count_val)
+            interaction_count_map[mol_id_txt] = float(parsed) if parsed is not None else 0.0
+
     needed = set(idx_to_id.keys())
     mol_props_data: dict = {}
+    mol_text_props_data: dict = {}
+    text_value_counters = {prop: Counter() for prop in text_prop_names}
+    text_value_display = {prop: {} for prop in text_prop_names}
     n_found = 0
     n_total = len(needed)
     try:
@@ -598,7 +625,10 @@ def _extract_mol_props_for_report(sdf_path, mol_df, scaf_df, prop_names, run_sta
                 continue
             mol_id = idx_to_id[i]
             vals = []
-            for p in prop_names:
+            for p in numeric_prop_names:
+                if p == "interaction_count":
+                    vals.append(round(interaction_count_map.get(mol_id, 0.0), 5))
+                    continue
                 if mol is not None and mol.HasProp(p):
                     try:
                         vals.append(round(float(mol.GetProp(p)), 5))
@@ -607,19 +637,51 @@ def _extract_mol_props_for_report(sdf_path, mol_df, scaf_df, prop_names, run_sta
                 else:
                     vals.append(None)
             mol_props_data[mol_id] = vals
+
+            text_props_for_mol = {}
+            for p in text_prop_names:
+                if mol is None or not mol.HasProp(p):
+                    continue
+                raw_text = str(mol.GetProp(p) or "").strip()
+                if not raw_text:
+                    continue
+                norm_text = raw_text.lower()
+                text_value_counters[p][norm_text] += 1
+                if norm_text not in text_value_display[p]:
+                    text_value_display[p][norm_text] = raw_text
+                text_props_for_mol[p] = raw_text
+            if text_props_for_mol:
+                mol_text_props_data[mol_id] = text_props_for_mol
+
             n_found += 1
             if n_found >= n_total:
                 break
     except Exception as exc:
         eprint(f"Warning: property extraction for HTML panel failed: {exc}")
-        return {}, scaffold_mol_map
+        return {}, scaffold_mol_map, {}, {}
+
+    text_prop_value_counts = {}
+    for prop in text_prop_names:
+        counts = text_value_counters.get(prop, Counter())
+        displays = text_value_display.get(prop, {})
+        sorted_items = sorted(
+            counts.items(),
+            key=lambda kv: (-kv[1], displays.get(kv[0], kv[0]).lower()),
+        )
+        text_prop_value_counts[prop] = [
+            {"value": displays.get(norm_val, norm_val), "count": int(count)}
+            for norm_val, count in sorted_items
+        ]
 
     progress_log(
         run_started,
         "Props panel data ready",
-        extra=f"molecules={n_found} props={len(prop_names)}",
+        extra=(
+            f"molecules={n_found} numeric_props={len(numeric_prop_names)} "
+            f"text_props={len(text_prop_names)}"
+        ),
     )
-    return mol_props_data, scaffold_mol_map
+    return mol_props_data, scaffold_mol_map, mol_text_props_data, text_prop_value_counts
 
 
 def detect_protein_format_from_path(path):
@@ -1084,6 +1146,21 @@ def _precompute_pose_interactions_for_source(task):
     return source_id, source_out, None
 
 
+def _chunked_pose_tasks_for_source(source_task, pose_order, max_workers):
+    """Split one source task into deterministic pose chunks for parallel workers."""
+    source_id, source_label, interaction_pdb_path, input_sdf, _pose_order = source_task
+    if max_workers <= 1 or len(pose_order) <= 1:
+        return [(source_id, source_label, interaction_pdb_path, input_sdf, list(pose_order))]
+    chunk_size = max(1, math.ceil(len(pose_order) / max_workers))
+    tasks = []
+    for i in range(0, len(pose_order), chunk_size):
+        chunk = pose_order[i:i + chunk_size]
+        if not chunk:
+            continue
+        tasks.append((source_id, source_label, interaction_pdb_path, input_sdf, chunk))
+    return tasks
+
+
 def _precompute_pose_interactions(args, pose_indices, run_started):
     """Precompute pose interaction payloads for report visualizer tabs.
 
@@ -1141,7 +1218,56 @@ def _precompute_pose_interactions(args, pose_indices, run_started):
 
     n_workers = max(1, int(args.n_workers) if int(getattr(args, "n_workers", 0) or 0) > 0 else (os.cpu_count() or 2))
     max_workers = max(1, min(n_workers, len(source_tasks)))
-    if max_workers > 1 and len(source_tasks) > 1:
+    if len(source_tasks) == 1 and len(pose_order) > 1 and n_workers > 1:
+        source_id, source_label, _pdb_path, _input, _poses = source_tasks[0]
+        pose_workers = max(1, min(n_workers, len(pose_order)))
+        pose_tasks = _chunked_pose_tasks_for_source(source_tasks[0], pose_order, pose_workers)
+        progress_log(
+            run_started,
+            "Precompute interactions",
+            extra=f"pose-parallel workers={pose_workers} chunks={len(pose_tasks)}",
+        )
+        try:
+            with ProcessPoolExecutor(max_workers=pose_workers) as ex:
+                fut_map = {ex.submit(_precompute_pose_interactions_for_source, task): idx for idx, task in enumerate(pose_tasks, start=1)}
+                partial = []
+                for fut in as_completed(fut_map):
+                    chunk_idx = fut_map[fut]
+                    out_id, source_out, err = fut.result()
+                    if err:
+                        raise RuntimeError(err)
+                    partial.append((chunk_idx, out_id, source_out))
+                    progress_log(
+                        run_started,
+                        "Precompute interactions",
+                        done=len(partial),
+                        total=len(pose_tasks),
+                        extra=f"protein={source_label}",
+                    )
+            merged = {}
+            for _chunk_idx, _out_id, source_out in sorted(partial, key=lambda x: x[0]):
+                if source_out:
+                    merged.update(source_out)
+            if merged:
+                out_by_source[source_id] = merged
+        except Exception as exc:
+            eprint(
+                f"Warning: pose-parallel interaction precompute failed for protein '{source_label}'; "
+                f"falling back to single-worker execution ({exc})."
+            )
+            out_id, source_out, err = _precompute_pose_interactions_for_source(source_tasks[0])
+            if err:
+                eprint(f"Warning: {err}")
+            if source_out:
+                out_by_source[out_id] = source_out
+            progress_log(
+                run_started,
+                "Precompute interactions",
+                done=1,
+                total=1,
+                extra=f"protein={source_label}",
+            )
+    elif max_workers > 1 and len(source_tasks) > 1:
         progress_log(run_started, "Precompute interactions", extra=f"parallel workers={max_workers}")
         with ProcessPoolExecutor(max_workers=max_workers) as ex:
             fut_map = {ex.submit(_precompute_pose_interactions_for_source, task): task for task in source_tasks}
@@ -1538,37 +1664,28 @@ def _stage_export_and_report(
     grouped_sar = list(report_mol_df.groupby("scaffold_id", dropna=False))
     total_sar_groups = len(grouped_sar)
     n_workers = max(1, int(args.n_workers) if args.n_workers > 0 else (os.cpu_count() or 2))
-    io_workers = n_workers
 
     if n_workers > 1 and total_sar_groups > 1:
         progress_log(run_started, "Per-scaffold CSV export", extra=f"parallel workers={n_workers}")
         tasks = [(scaf_id, sdf.to_dict("records")) for scaf_id, sdf in grouped_sar]
-        with ProcessPoolExecutor(max_workers=n_workers) as ex, ThreadPoolExecutor(max_workers=io_workers) as io_ex:
-            fut_map = {ex.submit(build_per_scaffold_substitution_table, task): idx for idx, task in enumerate(tasks, start=1)}
-            pending_writes = []
+        chunksize = max(1, len(tasks) // max(1, n_workers * 4))
+        with ProcessPoolExecutor(max_workers=n_workers) as ex:
             done = 0
-            for fut in as_completed(fut_map):
+            for scaf_hash, tdf in ex.map(build_per_scaffold_substitution_table, tasks, chunksize=chunksize):
                 done += 1
-                scaf_hash, tdf = fut.result()
                 tname = prefixed_output_name(args.file_prefix, f"scaffold_{scaf_hash}_substitutions.csv")
                 tpath = os.path.join(per_scaf_dir, tname)
-                pending_writes.append(io_ex.submit(write_dataframe_csv, tdf, tpath, False, True))
-                flush_pending_csv_writes(pending_writes, wait_all=False, max_pending=96)
+                write_dataframe_csv(tdf, tpath, index=False, prefer_arrow=True)
                 if done % 100 == 0 or done == total_sar_groups:
                     progress_log(run_started, "Per-scaffold CSV export", done=done, total=total_sar_groups)
-            flush_pending_csv_writes(pending_writes, wait_all=True)
     else:
-        with ThreadPoolExecutor(max_workers=io_workers) as io_ex:
-            pending_writes = []
-            for sar_idx, (scaf_id, sdf) in enumerate(grouped_sar, start=1):
-                if sar_idx % 100 == 0:
-                    progress_log(run_started, "Per-scaffold CSV export", done=sar_idx, total=total_sar_groups)
-                scaf_hash, tdf = build_per_scaffold_substitution_table((scaf_id, sdf.to_dict("records")))
-                tname = prefixed_output_name(args.file_prefix, f"scaffold_{scaf_hash}_substitutions.csv")
-                tpath = os.path.join(per_scaf_dir, tname)
-                pending_writes.append(io_ex.submit(write_dataframe_csv, tdf, tpath, False, True))
-                flush_pending_csv_writes(pending_writes, wait_all=False, max_pending=96)
-            flush_pending_csv_writes(pending_writes, wait_all=True)
+        for sar_idx, (scaf_id, sdf) in enumerate(grouped_sar, start=1):
+            if sar_idx % 100 == 0:
+                progress_log(run_started, "Per-scaffold CSV export", done=sar_idx, total=total_sar_groups)
+            scaf_hash, tdf = build_per_scaffold_substitution_table((scaf_id, sdf.to_dict("records")))
+            tname = prefixed_output_name(args.file_prefix, f"scaffold_{scaf_hash}_substitutions.csv")
+            tpath = os.path.join(per_scaf_dir, tname)
+            write_dataframe_csv(tdf, tpath, index=False, prefer_arrow=True)
     progress_log(run_started, "Per-scaffold CSV export complete", done=total_sar_groups, total=total_sar_groups)
 
     # QC summary.
@@ -1598,11 +1715,34 @@ def _stage_export_and_report(
         rep_subset = representative_ranked_subset(subset, top_n=args.top_per_scaffold)
         if "mol_index" in rep_subset.columns:
             pose_indices.update(int(i) for i in rep_subset["mol_index"].dropna().tolist())
-    pose_sdf_by_index = sanitize_sdf_blocks_for_viewer(
-        read_sdf_blocks_by_index(args.input, pose_indices)
-    )
     hbond_residue_options, scaffold_hbond_map = build_hbond_residue_filter_data(report_mol_df, scaf_df)
-    pose_interactions_by_index = _precompute_pose_interactions(args, pose_indices, run_started)
+
+    # Build independent report payloads concurrently to reduce end-to-end wall time.
+    progress_log(run_started, "Report payload precompute started")
+    with ThreadPoolExecutor(max_workers=max(1, min(n_workers, 4))) as prep_ex:
+        pose_sdf_future = prep_ex.submit(read_sdf_blocks_by_index, args.input, pose_indices)
+        pose_inter_future = prep_ex.submit(_precompute_pose_interactions, args, pose_indices, run_started)
+        scaffold_export_future = prep_ex.submit(
+            collect_scaffold_export_data,
+            report_mol_df,
+            central_df.head(args.max_scaffolds_in_report),
+            args.input,
+            args.top_per_scaffold,
+        )
+        prop_panel_future = prep_ex.submit(
+            _extract_mol_props_for_report,
+            args.input,
+            mol_df,
+            scaf_df,
+            args.numeric_sd_props,
+            args.text_sd_props,
+            run_started,
+        )
+        pose_sdf_by_index = sanitize_sdf_blocks_for_viewer(pose_sdf_future.result())
+        pose_interactions_by_index = pose_inter_future.result()
+        scaffold_export_data = scaffold_export_future.result()
+        mol_props_data, scaffold_mol_map, mol_text_props_data, text_prop_value_counts = prop_panel_future.result()
+    progress_log(run_started, "Report payload precompute complete")
 
     # Write core outputs.
     progress_log(run_started, "Core CSV writing started")
@@ -1612,30 +1752,14 @@ def _stage_export_and_report(
         ascending=[False, False, False],
         na_position="last",
     )
-    with ThreadPoolExecutor(max_workers=io_workers) as io_ex:
-        write_futs = [
-            io_ex.submit(write_dataframe_csv, mol_out, os.path.join(args.outdir, molecule_summary_name), False, True),
-            io_ex.submit(write_dataframe_csv, scaf_out, os.path.join(args.outdir, scaffold_summary_name), False, True),
-            io_ex.submit(write_dataframe_csv, central_df, os.path.join(args.outdir, central_ideas_name), False, True),
-        ]
-        for fut in write_futs:
-            fut.result()
+    write_dataframe_csv(mol_out, os.path.join(args.outdir, molecule_summary_name), index=False, prefer_arrow=True)
+    write_dataframe_csv(scaf_out, os.path.join(args.outdir, scaffold_summary_name), index=False, prefer_arrow=True)
+    write_dataframe_csv(central_df, os.path.join(args.outdir, central_ideas_name), index=False, prefer_arrow=True)
     progress_log(run_started, "Core CSV writing complete")
 
     # HTML report.
     figures = []
     progress_log(run_started, "HTML report building started")
-    scaffold_export_data = collect_scaffold_export_data(
-        report_mol_df,
-        central_df.head(args.max_scaffolds_in_report),
-        args.input,
-        args.top_per_scaffold,
-    )
-
-    # Properties panel data: SDF tag values + scaffold→member map.
-    mol_props_data, scaffold_mol_map = _extract_mol_props_for_report(
-        args.input, mol_df, scaf_df, _REPORT_PROP_NAMES, run_started,
-    )
 
     write_html_report(
         args.outdir,
@@ -1663,6 +1787,10 @@ def _stage_export_and_report(
         pose_interactions_by_index=pose_interactions_by_index,
         mol_props_data=mol_props_data,
         scaffold_mol_map=scaffold_mol_map,
+        prop_names_ordered=args.numeric_sd_props,
+        text_prop_names=args.text_sd_props,
+        mol_text_props_data=mol_text_props_data,
+        text_prop_value_counts=text_prop_value_counts,
     )
     progress_log(run_started, "HTML report complete",
                  extra=os.path.join(args.outdir, report_filename))
@@ -1680,6 +1808,11 @@ def main():
     # Setup phase: parse CLI, initialize output layout, load exclusion patterns.
     ap = build_cli_parser()
     args = ap.parse_args()
+
+    base_numeric_props = _normalize_sd_prop_list(_REPORT_PROP_NAMES)
+    extra_numeric_props = _normalize_sd_prop_list(getattr(args, "numeric_sd_props", []))
+    args.numeric_sd_props = _normalize_sd_prop_list(base_numeric_props + extra_numeric_props)
+    args.text_sd_props = _normalize_sd_prop_list(getattr(args, "text_sd_props", []))
 
     if getattr(args, "ref_ligand_sdf", None):
         args.ref_ligand_sdf = os.path.abspath(args.ref_ligand_sdf)

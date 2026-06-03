@@ -756,6 +756,7 @@ _PROP_DISPLAY_LABELS = {
     "GS_Pred_Cl_HLM_linear": "Predicted Cl HLM",
     "GS_MDCK_linear": "MDCK Permeability",
     "GS_RED_HP_linear": "RED Human Plasma",
+    "interaction_count": "Interaction Count",
     "MW": "Mol Weight",
     "cLogP": "cLogP",
     "TPSA": "TPSA",
@@ -792,9 +793,11 @@ def _compute_prop_stats(mol_props_data, prop_names):
     return stats
 
 
-def _build_prop_panel_html(prop_names, stats):
+def _build_prop_panel_html(prop_names, stats, text_prop_names=None, text_prop_value_counts=None):
     """Return the full HTML for the Molecule Properties panel section."""
     label = _PROP_DISPLAY_LABELS
+    text_prop_names = list(text_prop_names or [])
+    text_prop_value_counts = text_prop_value_counts or {}
 
     # Stats table rows.
     rows_html = ""
@@ -828,6 +831,48 @@ def _build_prop_panel_html(prop_names, stats):
         for p in prop_names
     )
 
+    text_tab_buttons_html = ""
+    text_tab_contents_html = ""
+    for idx, prop_name in enumerate(text_prop_names):
+        tab_key = f"text_{idx}_{re.sub(r'[^A-Za-z0-9_-]+', '_', str(prop_name)).strip('_') or 'prop'}"
+        tab_label = html.escape(str(prop_name))
+        values = text_prop_value_counts.get(prop_name, []) or []
+        text_tab_buttons_html += (
+            f"<button type='button' class='prop-tab-btn' data-tab='{tab_key}' "
+            f"onclick='_showPropTab(\"{tab_key}\")'>{tab_label}</button>"
+        )
+        if values:
+            checkbox_html = "".join(
+                (
+                    "<label class='prop-text-filter-chip'>"
+                    f"<input type='checkbox' class='text-prop-filter' data-text-prop='{html.escape(str(prop_name), quote=True)}' "
+                    f"value='{html.escape(str(item.get('value', '')), quote=True)}' checked "
+                    "onchange='_onTextFilterChange()'/>"
+                    f"<span>{html.escape(str(item.get('value', '')))} "
+                    f"<span class='smalltxt' style='color:#556;'>({int(item.get('count', 0))})</span></span>"
+                    "</label>"
+                )
+                for item in values
+            )
+            body_html = (
+                "<div class='smalltxt' style='margin-bottom:8px;'>"
+                "Choose one or more values to filter scaffolds and deep-dive members.</div>"
+                "<div class='prop-text-filter-grid'>"
+                f"{checkbox_html}"
+                "</div>"
+            )
+        else:
+            body_html = (
+                "<div class='smalltxt' style='padding:10px;border:1px solid #d9e3ef;border-radius:8px;background:#f8fbff;'>"
+                "No values found for this property in the current SDF input."
+                "</div>"
+            )
+        text_tab_contents_html += (
+            f"<div id='prop-tab-{tab_key}' class='prop-tab-content' style='display:none;'>"
+            f"{body_html}"
+            "</div>"
+        )
+
     panel = (
         "<section class='panel collapsible' id='props-panel'>"
         "<h2 ondblclick=\"this.closest('.panel').classList.toggle('collapsed')\">Molecule Properties</h2>"
@@ -855,6 +900,7 @@ def _build_prop_panel_html(prop_names, stats):
         "onclick='_showPropTab(\"box\")'>Box Plot</button>"
         "<button type='button' class='prop-tab-btn' data-tab='corr' "
         "onclick='_showPropTab(\"corr\")'>Correlation Plot</button>"
+        f"{text_tab_buttons_html}"
         "</div>"
         # Stats tab.
         "<div id='prop-tab-stats' class='prop-tab-content'>"
@@ -915,6 +961,7 @@ def _build_prop_panel_html(prop_names, stats):
         "</div>"
         "<div id='prop-corr-click-detail' class='prop-corr-detail empty'>Click a point to pin molecule details.</div>"
         "</div>"
+        f"{text_tab_contents_html}"
         "</section>"
     )
     return panel
@@ -1058,6 +1105,10 @@ def write_html_report(
     pose_interactions_by_index=None,
     mol_props_data=None,
     scaffold_mol_map=None,
+    prop_names_ordered=None,
+    text_prop_names=None,
+    mol_text_props_data=None,
+    text_prop_value_counts=None,
 ):
     html_path = os.path.join(outdir, report_filename)
     structure_assets = ensure_structure_search_assets(outdir)
@@ -1207,6 +1258,8 @@ def write_html_report(
     .prop-stats-table tr:nth-child(even) td { background:#fafbfd; }
     .prop-filter-chip-tag { display:inline-flex; align-items:center; gap:4px; background:#ddeeff; border:1px solid #8bbfe8; border-radius:999px; padding:2px 8px; margin:2px; font-size:12px; }
     .prop-filter-chip-tag button { background:none; border:none; cursor:pointer; color:#555; font-size:14px; line-height:1; padding:0 0 0 2px; }
+    .prop-text-filter-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:8px; }
+    .prop-text-filter-chip { display:flex; align-items:center; gap:8px; padding:7px 10px; border:1px solid #d7e1ec; border-radius:8px; background:#fff; }
     #prop-active-filters { background:#fff8e1; border:1px solid #ffe082; border-radius:6px; padding:8px 12px; margin-bottom:10px; display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
     .prop-hist-controls { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-top:8px; }
     .prop-range-field { display:flex; align-items:center; gap:4px; font-size:13px; }
@@ -1547,26 +1600,33 @@ def write_html_report(
         fh.write("</div></details></section>")
 
         # Properties Panel (above Central Ideas).
-        _prop_names_ordered = [
+        _prop_names_ordered = list(prop_names_ordered or [
             "GS_LogD", "GS_Sol_74_linear", "GS_CACO2_A2B_10_linear", "GS_CACO2_B2A_10_linear",
             "GS_HP_Free_LT_linear", "GS_CACO2_A2B_1_linear", "GS_CACO2_B2A_1_linear",
             "GS_HP_Free_linear", "GS_Pred_Cl_HLM_linear", "GS_MDCK_linear", "GS_RED_HP_linear",
+            "interaction_count",
             "MW", "cLogP", "TPSA", "HBD", "HBA", "RotBonds", "HeavyAtoms", "FormalCharge",
             "RingCount", "FractionCSP3",
-        ]
-        _has_props = bool(mol_props_data)
+        ])
+        _text_prop_names = list(text_prop_names or [])
+        _text_prop_value_counts = text_prop_value_counts or {}
+        _has_props = bool(mol_props_data) or bool(_text_prop_names)
         if _has_props:
-            _prop_stats = _compute_prop_stats(mol_props_data, _prop_names_ordered)
+            _prop_stats = _compute_prop_stats(mol_props_data or {}, _prop_names_ordered)
             _mol_smiles_lookup = _build_mol_smiles_lookup(mol_df)
-            fh.write(_build_prop_panel_html(_prop_names_ordered, _prop_stats))
+            fh.write(_build_prop_panel_html(_prop_names_ordered, _prop_stats, _text_prop_names, _text_prop_value_counts))
             # Serialize data constants for JS.
             _prop_labels_js = {p: _PROP_DISPLAY_LABELS.get(p, p) for p in _prop_names_ordered}
             _prop_names_js = json.dumps(_prop_names_ordered, ensure_ascii=True)
             _prop_labels_json = json.dumps(_prop_labels_js, ensure_ascii=True)
-            _mol_props_json = json.dumps(mol_props_data, ensure_ascii=True)
+            _mol_props_json = json.dumps(mol_props_data or {}, ensure_ascii=True)
             _scaffold_mol_json = json.dumps(scaffold_mol_map or {}, ensure_ascii=True)
+            _text_prop_names_json = json.dumps(_text_prop_names, ensure_ascii=True)
+            _text_prop_counts_json = json.dumps(_text_prop_value_counts, ensure_ascii=True)
+            _mol_text_props_json = json.dumps(mol_text_props_data or {}, ensure_ascii=True)
             _mol_props_json_str = json.dumps(_mol_props_json, ensure_ascii=True)
             _scaffold_mol_json_str = json.dumps(_scaffold_mol_json, ensure_ascii=True)
+            _mol_text_props_json_str = json.dumps(_mol_text_props_json, ensure_ascii=True)
             _mol_smiles_json = json.dumps(_mol_smiles_lookup, ensure_ascii=True)
             fh.write(
                 f"<script>"
@@ -1574,10 +1634,15 @@ def write_html_report(
                 f"const _PROP_LABELS={_prop_labels_json};"
                 f"const _MOL_PROPS_DATA_JSON={_mol_props_json_str};"
                 f"const _SCAFFOLD_MOL_MAP_JSON={_scaffold_mol_json_str};"
+                f"const _TEXT_PROP_NAMES={_text_prop_names_json};"
+                f"const _TEXT_PROP_VALUE_COUNTS={_text_prop_counts_json};"
+                f"const _MOL_TEXT_PROPS_DATA_JSON={_mol_text_props_json_str};"
                 f"var _MOL_PROPS_DATA=null;"
                 f"var _SCAFFOLD_MOL_MAP=null;"
+                f"var _MOL_TEXT_PROPS_DATA=null;"
                 f"const _MOL_SMILES_BY_ID={_mol_smiles_json};"
                 f"var _PROP_FILTER_STATE={{}};"
+                f"var _TEXT_FILTER_STATE={{}};"
                 f"</script>"
             )
 
@@ -2065,6 +2130,7 @@ def write_html_report(
             "      if(!molId){return false;}\n"
             "      if(typeof _molPassesNamedPropFilters!=='function'||!_molPassesNamedPropFilters(molId,activeFilters)){return false;}\n"
             "    }\n"
+            "    if(typeof _molPassesTextFilters==='function'&&!_molPassesTextFilters(molId)){return false;}\n"
             "  }\n"
             "  if(opts.applyStructure&&_STRUCTURE_MATCH_STATE.active){\n"
             "    if(!molId||!_STRUCTURE_MATCH_STATE.matchedMolIds||!_STRUCTURE_MATCH_STATE.matchedMolIds.has(molId)){return false;}\n"
@@ -2285,6 +2351,65 @@ def write_html_report(
             "}\n"
             "function _getActivePropFilterNames(){\n"
             "  return typeof _PROP_FILTER_STATE==='undefined'?[]:Object.keys(_PROP_FILTER_STATE);\n"
+            "}\n"
+            "function _getMolTextPropsData(){\n"
+            "  if(typeof _MOL_TEXT_PROPS_DATA_JSON==='undefined'){return {}; }\n"
+            "  if(_MOL_TEXT_PROPS_DATA===null){\n"
+            "    _MOL_TEXT_PROPS_DATA=_MOL_TEXT_PROPS_DATA_JSON?JSON.parse(_MOL_TEXT_PROPS_DATA_JSON):{};\n"
+            "  }\n"
+            "  return _MOL_TEXT_PROPS_DATA||{};\n"
+            "}\n"
+            "function _normTextFilterValue(value){\n"
+            "  return String(value===null||value===undefined?'':value).trim().toLowerCase();\n"
+            "}\n"
+            "function _getTextFilterAllNormValues(propName){\n"
+            "  var list=(_TEXT_PROP_VALUE_COUNTS&&_TEXT_PROP_VALUE_COUNTS[propName])||[];\n"
+            "  var out=[];\n"
+            "  list.forEach(function(item){\n"
+            "    var norm=_normTextFilterValue(item&&item.value);\n"
+            "    if(norm){out.push(norm);}\n"
+            "  });\n"
+            "  return out;\n"
+            "}\n"
+            "function _syncTextFilterStateFromDom(){\n"
+            "  if(typeof _TEXT_FILTER_STATE==='undefined'){return;}\n"
+            "  _TEXT_FILTER_STATE={};\n"
+            "  if(typeof _TEXT_PROP_NAMES==='undefined'){return;}\n"
+            "  _TEXT_PROP_NAMES.forEach(function(propName){\n"
+            "    var selected=[];\n"
+            "    document.querySelectorAll('.text-prop-filter[data-text-prop=\"'+_cssEsc(propName)+'\"]:checked').forEach(function(cb){\n"
+            "      var norm=_normTextFilterValue(cb.value);\n"
+            "      if(norm){selected.push(norm);}\n"
+            "    });\n"
+            "    _TEXT_FILTER_STATE[propName]=selected;\n"
+            "  });\n"
+            "}\n"
+            "function _getActiveTextFilterNames(){\n"
+            "  if(typeof _TEXT_FILTER_STATE==='undefined'||typeof _TEXT_PROP_NAMES==='undefined'){return []; }\n"
+            "  return _TEXT_PROP_NAMES.filter(function(propName){\n"
+            "    var allVals=_getTextFilterAllNormValues(propName);\n"
+            "    if(!allVals.length){return false;}\n"
+            "    var selected=Array.isArray(_TEXT_FILTER_STATE[propName])?_TEXT_FILTER_STATE[propName]:[];\n"
+            "    return selected.length!==allVals.length;\n"
+            "  });\n"
+            "}\n"
+            "function _molPassesTextFilters(molId){\n"
+            "  var activeTextProps=_getActiveTextFilterNames();\n"
+            "  if(!activeTextProps.length){return true;}\n"
+            "  var textByMol=_getMolTextPropsData();\n"
+            "  var molText=textByMol[molId]||null;\n"
+            "  if(!molText){return false;}\n"
+            "  return activeTextProps.every(function(propName){\n"
+            "    var selected=Array.isArray(_TEXT_FILTER_STATE[propName])?_TEXT_FILTER_STATE[propName]:[];\n"
+            "    if(!selected.length){return false;}\n"
+            "    var molValNorm=_normTextFilterValue(molText[propName]);\n"
+            "    if(!molValNorm){return false;}\n"
+            "    return selected.indexOf(molValNorm)>=0;\n"
+            "  });\n"
+            "}\n"
+            "function _onTextFilterChange(){\n"
+            "  _syncTextFilterStateFromDom();\n"
+            "  _applyCentralFilters();\n"
             "}\n"
             "function _getMolPropsData(){\n"
             "  if(_MOL_PROPS_DATA===null){\n"
@@ -2543,11 +2668,19 @@ def write_html_report(
             "    return passQuery&&passHBond&&passStructure;\n"
             "  });\n"
             "  var activePropFilters=_getActivePropFilterNames();\n"
+            "  var activeTextFilters=(typeof _getActiveTextFilterNames==='function')?_getActiveTextFilterNames():[];\n"
             "  _CENTRAL_RENDER_STATE.propImpactSummary=_computePropImpactSummary(baseCards,activePropFilters);\n"
             "  _CENTRAL_RENDER_STATE.scaffoldPropStats=_CENTRAL_RENDER_STATE.propImpactSummary.scaffoldStats||{};\n"
             "  var cards=baseCards.filter(function(entry){\n"
-            "    var stats=_CENTRAL_RENDER_STATE.scaffoldPropStats[String(entry.scaffold||'')];\n"
-            "    return !activePropFilters.length||!!(stats&&stats.keptCount>0);\n"
+            "    var scaf=String(entry.scaffold||'');\n"
+            "    var stats=_CENTRAL_RENDER_STATE.scaffoldPropStats[scaf];\n"
+            "    var passNumeric=!activePropFilters.length||!!(stats&&stats.keptCount>0);\n"
+            "    if(!passNumeric){return false;}\n"
+            "    if(activeTextFilters.length){\n"
+            "      var textCounts=_countScaffoldMembers(scaf,{applyExclusion:false,applyPropFilters:true,applyStructure:false});\n"
+            "      return textCounts.raw>0;\n"
+            "    }\n"
+            "    return true;\n"
             "  });\n"
             "  _updateHighlightListing();\n"
             "  cards.sort(function(a,b){\n"
@@ -2837,6 +2970,7 @@ def write_html_report(
             "    _bindPagerBtn('central-page-next-bottom',function(){_CENTRAL_RENDER_STATE.page+=1;_renderCentralPage();});\n"
             "    _bindPagerBtn('central-page-last-bottom',function(){_CENTRAL_RENDER_STATE.page=Math.max(0,_CENTRAL_RENDER_STATE.lastTotalPages-1);_renderCentralPage();});\n"
             "    _CENTRAL_RENDER_STATE.filteredScaffolds=_getCentralCards().map(function(entry){return String(entry.scaffold||'');});\n"
+            "    if(typeof _syncTextFilterStateFromDom==='function'){_syncTextFilterStateFromDom();}\n"
             "    _updateHighlightListing();\n"
             "    _applyCentralFilters();\n"
             "  }catch(err){\n"
@@ -2866,19 +3000,16 @@ def write_html_report(
             "function _applyPropFilterToDeepDives(){\n"
             "  if(typeof _PROP_FILTER_STATE==='undefined'){return;}\n"
             "  var activeFilters=Object.keys(_PROP_FILTER_STATE);\n"
+            "  var activeTextFilters=(typeof _getActiveTextFilterNames==='function')?_getActiveTextFilterNames():[];\n"
             "  document.querySelectorAll('#deep-dive-shell .moltile').forEach(function(tile){\n"
             "    var pass=true;\n"
-            "    if(activeFilters.length){\n"
+            "    if(activeFilters.length||activeTextFilters.length){\n"
             "      var molId=String(tile.dataset.molId||'');\n"
-            "      var props=_getMolPropsData()[molId]||null;\n"
-            "      if(props){\n"
-            "        pass=activeFilters.every(function(p){\n"
-            "          var pIdx=_PROP_NAMES.indexOf(p);\n"
-            "          if(pIdx<0){return true;}\n"
-            "          var range=_PROP_FILTER_STATE[p];\n"
-            "          var val=props[pIdx];\n"
-            "          return val!==null&&val!==undefined&&val>=range.min&&val<=range.max;\n"
-            "        });\n"
+            "      if(!molId){\n"
+            "        pass=false;\n"
+            "      } else {\n"
+            "        if(activeFilters.length){pass=_molPassesNamedPropFilters(molId,activeFilters);}\n"
+            "        if(pass&&typeof _molPassesTextFilters==='function'){pass=_molPassesTextFilters(molId);}\n"
             "      }\n"
             "    }\n"
             "    tile.dataset.propHidden=pass?'0':'1';\n"

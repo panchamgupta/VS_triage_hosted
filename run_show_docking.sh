@@ -14,7 +14,7 @@ fi
 "${PYTHON_CMD[@]}" process_docking_IF_show_docking.py \
 	--input direct_linker_enumeration_docking_pose_all_BB_with_props.sdf \
 	--protein-pdb "$SCRIPT_DIR/6782_protein.pdb" \
-	--file-prefix VS_visualization_05232026 \
+	--file-prefix VS_visualization_06022026 \
 	--interaction-csv "$SCRIPT_DIR/direct_linker_all_IF.csv" \
 	--interaction-id-col Title \
 	--interaction-count-col interaction_count \
@@ -25,7 +25,7 @@ fi
 	--max-hbond-donors 2 \
 	--exclude-smiles-file "$SCRIPT_DIR/exclude_motifs.smi" \
 	--top-per-scaffold 10 \
-	--max-scaffolds-in-report 25 \
+	--max-scaffolds-in-report 500 \
 	--n-workers 8 \
 	# --generate-all-mol-images
 
