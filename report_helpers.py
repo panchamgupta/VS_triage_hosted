@@ -4,13 +4,14 @@ import json
 import os
 import re
 import shutil
+from collections import Counter
 
 import pandas as pd
 from rdkit import Chem
 
 from docking_pose_visualizer_block import build_docking_pose_visualizer_js
 from scaffold_summary_helpers import filter_sig_to_positions, mol_png_base64_from_smiles, representative_ranked_subset
-from shared_utils import hash_text
+from shared_utils import hash_text, safe_float
 
 
 _REPORT_HELPERS_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -18,6 +19,15 @@ _REPORT_ASSET_VENDOR_DIR = os.path.join(_REPORT_HELPERS_DIR, "report_assets", "v
 
 # Reference ligand indices are offset by this amount to never collide with real pose indices.
 _REF_LIGAND_INDEX_OFFSET = 1_000_000
+
+
+def _fmt_display_number(value, digits=2):
+    parsed = safe_float(value)
+    if parsed is None:
+        return "—"
+    if float(parsed).is_integer():
+        return str(int(round(parsed)))
+    return f"{parsed:.{digits}f}"
 
 
 def parse_ref_ligand_sdf(sdf_path):
@@ -365,16 +375,16 @@ def molecule_tile_html(
     if show_scaffold and row.get("scaffold_name"):
         parts.append(f"<div class='smalltxt'><b>Scaffold:</b> {html.escape(str(row.get('scaffold_name', '')))}</div>")
     dl = row.get("druglike_score")
-    dl_str = f"{dl:.2f}" if dl is not None and not (isinstance(dl, float) and pd.isna(dl)) else "—"
+    dl_str = _fmt_display_number(dl)
     ovr = row.get("overall_score")
-    ovr_str = f"{ovr:.3f}" if ovr is not None and not (isinstance(ovr, float) and pd.isna(ovr)) else "—"
+    ovr_str = _fmt_display_number(ovr)
     parts.append(
         f"<div class='smalltxt'>"
-        f"score: {row.get('score')} | "
-        f"interactions: {row.get('interaction_count')} | "
+        f"score: {_fmt_display_number(row.get('score'))} | "
+        f"interactions: {_fmt_display_number(row.get('interaction_count'))} | "
         f"druglike: {dl_str} | "
         f"overall: {ovr_str} | "
-        f"rotB: {row.get('rot_bonds')} | TPSA: {row.get('tpsa')}"
+        f"rotB: {_fmt_display_number(row.get('rot_bonds'))} | TPSA: {_fmt_display_number(row.get('tpsa'))}"
         f"</div>"
     )
     # Add the 5 special properties if available.
@@ -382,16 +392,16 @@ def molecule_tile_html(
         mol_id = str(row.get("mol_id", ""))
         if mol_id in mol_props_data:
             props_arr = mol_props_data[mol_id]  # list indexed by prop position
-            target_props = ["GS_LogD", "GS_Sol_74_linear", "MW", "RingCount", "FractionCSP3"]
-            target_labels = ["LogD", "Sol(7.4)", "MW", "Rings", "Fsp3"]
+            prop_index_map = {name: idx for idx, name in enumerate(prop_names_list)}
+            target_props = [name for name in prop_names_list if name in _PROP_DISPLAY_LABELS][:5]
+            target_labels = [_PROP_DISPLAY_LABELS.get(name, name) for name in target_props]
             prop_vals = []
             for p, lbl in zip(target_props, target_labels):
-                if p in prop_names_list:
-                    idx = prop_names_list.index(p)
-                    if idx < len(props_arr) and props_arr[idx] is not None:
-                        val = props_arr[idx]
-                        val_str = f"{val:.2f}" if isinstance(val, float) else str(val)
-                        prop_vals.append(f"{lbl}: {val_str}")
+                idx = prop_index_map.get(p)
+                if idx < len(props_arr) and props_arr[idx] is not None:
+                    val = props_arr[idx]
+                    val_str = _fmt_display_number(val)
+                    prop_vals.append(f"{lbl}: {val_str}")
             if prop_vals:
                 parts.append(
                     f"<div class='smalltxt' style='color:#1f4f7a;margin-top:2px;'>"
@@ -530,11 +540,11 @@ def build_idea_cards(
             )
         blocks.append(html_img_from_b64(row.get("core_png_b64", ""), row.get("scaffold_name", "core"), width=220))
         med_ovr = row.get("median_overall_score")
-        med_ovr_str = f"{med_ovr:.2f}" if med_ovr is not None and not (isinstance(med_ovr, float) and pd.isna(med_ovr)) else "—"
+        med_ovr_str = _fmt_display_number(med_ovr)
         nov = row.get("interaction_novelty")
-        nov_str = f"{nov:.2f}" if nov is not None and not (isinstance(nov, float) and pd.isna(nov)) else "—"
+        nov_str = _fmt_display_number(nov)
         fsp3 = row.get("scaffold_fsp3")
-        fsp3_str = f"{fsp3:.2f}" if fsp3 is not None and not (isinstance(fsp3, float) and pd.isna(fsp3)) else "—"
+        fsp3_str = _fmt_display_number(fsp3)
         alip = row.get("scaffold_aliphatic_rings")
         alip_str = str(int(alip)) if alip is not None and not (isinstance(alip, float) and pd.isna(alip)) else "—"
         struct_badge = ""
@@ -543,8 +553,8 @@ def build_idea_cards(
         blocks.append(
             f"<div class='smalltxt'>"
             f"<b>Members:</b> <span class='central-members-count' data-raw-members='{n_members}' data-unique-members='{unique_members}'>{n_members}</span><span class='scaffold-impact-summary smalltxt' data-scaffold='{html.escape(sname, quote=True)}' style='margin-left:6px;color:#1f4f7a;'></span> | "
-            f"<b>Median score:</b> {row.get('median_score')} | "
-            f"<b>Median interactions:</b> {row.get('median_interaction_count')} | "
+            f"<b>Median score:</b> {_fmt_display_number(row.get('median_score'))} | "
+            f"<b>Median interactions:</b> {_fmt_display_number(row.get('median_interaction_count'))} | "
             f"<b>Median overall:</b> {med_ovr_str} | "
             f"<b>Novelty:</b> {nov_str} | "
             f"<b>Fsp3:</b> {fsp3_str} | "
@@ -782,10 +792,10 @@ def _compute_prop_stats(mol_props_data, prop_names):
             mean = sum(vals) / n
             var = sum((v - mean) ** 2 for v in vals) / max(1, n - 1) if n > 1 else 0.0
             stats[p] = {
-                "min": round(mn, 4),
-                "max": round(mx, 4),
-                "mean": round(mean, 4),
-                "stdev": round(var ** 0.5, 4),
+                "min": round(mn, 2),
+                "max": round(mx, 2),
+                "mean": round(mean, 2),
+                "stdev": round(var ** 0.5, 2),
                 "n": n,
             }
         else:
@@ -804,13 +814,13 @@ def _build_prop_panel_html(prop_names, stats, text_prop_names=None, text_prop_va
     for p in prop_names:
         s = stats.get(p, {})
         lbl = html.escape(label.get(p, p))
-        mn = f"{s['min']:.4g}" if s["min"] is not None else "—"
-        mean = f"{s['mean']:.4g}" if s["mean"] is not None else "—"
-        mx = f"{s['max']:.4g}" if s["max"] is not None else "—"
-        sd = f"{s['stdev']:.4g}" if s["stdev"] is not None else "—"
+        mn = _fmt_display_number(s["min"])
+        mean = _fmt_display_number(s["mean"])
+        mx = _fmt_display_number(s["max"])
+        sd = _fmt_display_number(s["stdev"])
         n = s.get("n", 0)
         rows_html += (
-            f"<tr><td><b>{lbl}</b></td>"
+            f"<tr><td><label style='display:inline-flex;align-items:center;gap:6px;cursor:pointer;'><input type='checkbox' class='summary-prop-toggle' data-prop='{html.escape(str(p), quote=True)}' onchange=\"_toggleSelectedProp('{html.escape(str(p), quote=True)}', this.checked)\" /><b>{lbl}</b></label></td>"
             f"<td style='text-align:right;color:#556'>{n:,}</td>"
             f"<td style='text-align:right;'>{mn}</td>"
             f"<td style='text-align:right;'>{mean}</td>"
@@ -878,7 +888,7 @@ def _build_prop_panel_html(prop_names, stats, text_prop_names=None, text_prop_va
         "<h2 ondblclick=\"this.closest('.panel').classList.toggle('collapsed')\">Molecule Properties</h2>"
         "<p class='smalltxt'>ADME and physico-chemical properties for all molecules. "
         "Use <b>Histogram &amp; Filter</b> to apply range filters — scaffolds in Central Ideas "
-        "are hidden when no member passes all active filters (AND logic). "
+        "are hidden when no member passes all active filters (AND logic). Check properties in Summary Stats to show them in the docking pose visualizer. "
         "Deep-dive member tiles are also hidden individually. "
         "<b>Tip:</b> double-click the section title to collapse or expand this panel.</p>"
         # Active filter banner (hidden until a filter is applied).
@@ -1007,8 +1017,8 @@ def build_deep_dive_html(
         parts.append(f"<img src='{panel_img}' alt='scaffold_panel' decoding='async' style='max-width:1100px;width:100%;margin-top:8px;' />")
     parts.append("<ul>")
     parts.append(f"<li><b>Members:</b> <span class='dd-members-count' data-raw-members='{int(row['n_members'])}'>{int(row['n_members'])}</span><span class='scaffold-impact-summary smalltxt' data-scaffold='{html.escape(scaffold_name, quote=True)}' style='margin-left:6px;color:#1f4f7a;'></span></li>")
-    parts.append(f"<li><b>Median interaction count:</b> {row.get('median_interaction_count')}</li>")
-    parts.append(f"<li><b>Median docking score:</b> {row.get('median_score')}</li>")
+    parts.append(f"<li><b>Median interaction count:</b> {_fmt_display_number(row.get('median_interaction_count'))}</li>")
+    parts.append(f"<li><b>Median docking score:</b> {_fmt_display_number(row.get('median_score'))}</li>")
     parts.append(f"<li><b>Representative IDs:</b> <span class='mono'>{row.get('representative_ids', '')}</span></li>")
     parts.append("<li><b>How to read R-labels:</b> the scaffold panel labels variable positions as Rn, and example molecules below list substitutions at those same Rn positions.</li>")
     parts.append("<li><b>What to inspect in docking:</b> left-click a member tile to open the docking pose viewer.</li>")
@@ -1641,6 +1651,9 @@ def write_html_report(
                 f"var _SCAFFOLD_MOL_MAP=null;"
                 f"var _MOL_TEXT_PROPS_DATA=null;"
                 f"const _MOL_SMILES_BY_ID={_mol_smiles_json};"
+                f"const _SELECTED_PROP_KEY='rgroup_report_selected_props_v1';"
+                f"var _SELECTED_PROP_STATE={{}};"
+                f"try{{var _savedSelectedProps=localStorage.getItem(_SELECTED_PROP_KEY);if(_savedSelectedProps){{Object.assign(_SELECTED_PROP_STATE,JSON.parse(_savedSelectedProps));}}}}catch(_e){{}}"
                 f"var _PROP_FILTER_STATE={{}};"
                 f"var _TEXT_FILTER_STATE={{}};"
                 f"</script>"
@@ -2352,6 +2365,78 @@ def write_html_report(
             "function _getActivePropFilterNames(){\n"
             "  return typeof _PROP_FILTER_STATE==='undefined'?[]:Object.keys(_PROP_FILTER_STATE);\n"
             "}\n"
+            "function _persistSelectedPropState(){\n"
+            "  try{localStorage.setItem(_SELECTED_PROP_KEY,JSON.stringify(_SELECTED_PROP_STATE));}catch(_e){}\n"
+            "}\n"
+            "function _syncSelectedPropCheckboxes(){\n"
+            "  if(typeof _SELECTED_PROP_STATE==='undefined'){return;}\n"
+            "  document.querySelectorAll('.summary-prop-toggle').forEach(function(cb){\n"
+            "    var propName=String(cb.dataset.prop||'');\n"
+            "    cb.checked=!!_SELECTED_PROP_STATE[propName];\n"
+            "  });\n"
+            "}\n"
+            "function _getSelectedPropNames(){\n"
+            "  if(typeof _PROP_NAMES==='undefined'||typeof _SELECTED_PROP_STATE==='undefined'){return []; }\n"
+            "  return _PROP_NAMES.filter(function(propName){return !!_SELECTED_PROP_STATE[propName];});\n"
+            "}\n"
+            "function _toggleSelectedProp(propName,checked){\n"
+            "  if(typeof _SELECTED_PROP_STATE==='undefined'){return;}\n"
+            "  var key=String(propName||'');\n"
+            "  if(!key){return;}\n"
+            "  if(checked){_SELECTED_PROP_STATE[key]=true;}else{delete _SELECTED_PROP_STATE[key];}\n"
+            "  _persistSelectedPropState();\n"
+            "  _syncSelectedPropCheckboxes();\n"
+            "  if(typeof _updatePoseSelectedProps==='function'){_updatePoseSelectedProps();}\n"
+            "}\n"
+            "function _getSelectedPropEntriesForMol(molId){\n"
+            "  var selectedNames=_getSelectedPropNames();\n"
+            "  if(!selectedNames.length){return []; }\n"
+            "  var propsById=_getMolPropsData();\n"
+            "  var props=propsById[String(molId||'')]||null;\n"
+            "  if(!props){return []; }\n"
+            "  return selectedNames.map(function(propName){\n"
+            "    var idx=_PROP_NAMES.indexOf(propName);\n"
+            "    if(idx<0||idx>=props.length){return null;}\n"
+            "    return {name:propName,label:(_PROP_LABELS&&_PROP_LABELS[propName])||propName,value:props[idx]};\n"
+            "  }).filter(Boolean);\n"
+            "}\n"
+            "function _formatPosePropValue(value){\n"
+            "  if(value===null||value===undefined||value===''){return '\u2014';}\n"
+            "  var num=Number(value);\n"
+            "  if(isFinite(num)){return (Math.abs(num-Math.round(num))<1e-9)?String(Math.round(num)):num.toFixed(2);}\n"
+            "  return String(value);\n"
+            "}\n"
+            "function _ensurePosePropSummaryBox(){\n"
+            "  var host=document.getElementById('pose-head-controls-body');\n"
+            "  if(!host){return null;}\n"
+            "  var box=document.getElementById('pose-prop-summary');\n"
+            "  if(!box){\n"
+            "    box=document.createElement('div');\n"
+            "    box.id='pose-prop-summary';\n"
+            "    box.style.cssText='display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:12px;color:#33475e;padding:2px 0 4px 0;';\n"
+            "    host.insertBefore(box, host.firstChild);\n"
+            "  }\n"
+            "  return box;\n"
+            "}\n"
+            "function _updatePoseSelectedProps(){\n"
+            "  var box=_ensurePosePropSummaryBox();\n"
+            "  if(!box){return;}\n"
+            "  var selectedNames=_getSelectedPropNames();\n"
+            "  if(!selectedNames.length){box.innerHTML='<div class=\"smalltxt\" style=\"color:#5c7087;\">Select properties in Summary Stats to show them here.</div>';return;}\n"
+            "  var molId='';\n"
+            "  if(typeof _POSE_STATE!=='undefined'&&_POSE_STATE&&_POSE_STATE.lastLabel){molId=String(_POSE_STATE.lastLabel||'');}\n"
+            "  var entries=_getSelectedPropEntriesForMol(molId);\n"
+            "  if(!entries.length){box.innerHTML='<div class=\"smalltxt\" style=\"color:#5c7087;\">No selected property values are available for this ligand.</div>';return;}\n"
+            "  box.innerHTML='<div class=\"smalltxt\" style=\"font-weight:600;color:#1f3551;margin-right:4px;\">Selected ligand properties:</div>' + entries.map(function(item){\n"
+            "    return '<span style=\"display:inline-flex;align-items:center;gap:6px;padding:3px 8px;border:1px solid #cfd9e4;border-radius:999px;background:#f7fbff;color:#203348;\"><b>'+_escapeHtml(item.label)+'</b>: '+_escapeHtml(_formatPosePropValue(item.value))+'</span>';\n"
+            "  }).join('');\n"
+            "}\n"
+            "window.addEventListener('storage',function(evt){\n"
+            "  if(!evt||evt.key!==_SELECTED_PROP_KEY){return;}\n"
+            "  try{_SELECTED_PROP_STATE=evt.newValue?JSON.parse(evt.newValue):{};}catch(_e){_SELECTED_PROP_STATE={};}\n"
+            "  _syncSelectedPropCheckboxes();\n"
+            "  if(typeof _updatePoseSelectedProps==='function'){_updatePoseSelectedProps();}\n"
+            "});\n"
             "function _getMolTextPropsData(){\n"
             "  if(typeof _MOL_TEXT_PROPS_DATA_JSON==='undefined'){return {}; }\n"
             "  if(_MOL_TEXT_PROPS_DATA===null){\n"
@@ -2671,10 +2756,11 @@ def write_html_report(
             "  var activeTextFilters=(typeof _getActiveTextFilterNames==='function')?_getActiveTextFilterNames():[];\n"
             "  _CENTRAL_RENDER_STATE.propImpactSummary=_computePropImpactSummary(baseCards,activePropFilters);\n"
             "  _CENTRAL_RENDER_STATE.scaffoldPropStats=_CENTRAL_RENDER_STATE.propImpactSummary.scaffoldStats||{};\n"
+            "  var hideEmptyFilteredCards=!!(activePropFilters.length||activeTextFilters.length);\n"
             "  var cards=baseCards.filter(function(entry){\n"
             "    var scaf=String(entry.scaffold||'');\n"
             "    var stats=_CENTRAL_RENDER_STATE.scaffoldPropStats[scaf];\n"
-            "    var passNumeric=!activePropFilters.length||!!(stats&&stats.keptCount>0);\n"
+            "    var passNumeric=!hideEmptyFilteredCards||!!(stats&&stats.keptCount>0);\n"
             "    if(!passNumeric){return false;}\n"
             "    if(activeTextFilters.length){\n"
             "      var textCounts=_countScaffoldMembers(scaf,{applyExclusion:false,applyPropFilters:true,applyStructure:false});\n"
@@ -3351,10 +3437,20 @@ def write_html_report(
             "  var histSel=document.getElementById('prop-hist-select');\n"
             "  var corrX=document.getElementById('prop-corr-x');\n"
             "  var corrY=document.getElementById('prop-corr-y');\n"
+            "  _syncSelectedPropCheckboxes();\n"
             "  // Correlation selects are already populated in HTML; histogram select too.\n"
             "  // Set default correlation Y to second property.\n"
             "  if(corrY&&_PROP_NAMES.length>1){corrY.value=_PROP_NAMES[1];}\n"
             "  // Defer histogram/correlation plotting until user opens the tab or clicks Plot.\n"
+            "}\n"
+            "if(typeof _renderPoseFromIndex==='function'&&!_renderPoseFromIndex.__selectedPropsWrapped){\n"
+            "  var _origRenderPoseFromIndex=_renderPoseFromIndex;\n"
+            "  _renderPoseFromIndex=function(idx,molLabel,options){\n"
+            "    var out=_origRenderPoseFromIndex.apply(this,arguments);\n"
+            "    if(typeof _updatePoseSelectedProps==='function'){_updatePoseSelectedProps();}\n"
+            "    return out;\n"
+            "  };\n"
+            "  _renderPoseFromIndex.__selectedPropsWrapped=true;\n"
             "}\n"
             "_initCentralFilters();\n"
             "_initPropPanel();\n"

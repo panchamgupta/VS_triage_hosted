@@ -76,7 +76,7 @@ except Exception:
     pa_csv = None
 
 from cli_config import build_cli_parser, initialize_output_layout, prefixed_output_name, resolve_score_props
-from export_helpers import collect_scaffold_export_data, make_central_barplot, make_central_structure_overview, make_qc_summary, make_residue_heatmap, make_scatter_plot, read_sdf_blocks_by_index, sanitize_sdf_blocks_for_viewer, write_dataframe_csv
+from export_helpers import collect_scaffold_export_data, flush_pending_csv_writes, make_central_barplot, make_central_structure_overview, make_qc_summary, make_residue_heatmap, make_scatter_plot, read_sdf_blocks_by_index, sanitize_sdf_blocks_for_viewer, write_dataframe_csv
 from filtering import apply_report_filters, druglike_score_from_row, weighted_present
 from progress_tracking import format_elapsed, progress_log, start_progress_bar, finish_progress_bar
 from report_helpers import build_hbond_residue_filter_data, write_html_report
@@ -1146,21 +1146,6 @@ def _precompute_pose_interactions_for_source(task):
     return source_id, source_out, None
 
 
-def _chunked_pose_tasks_for_source(source_task, pose_order, max_workers):
-    """Split one source task into deterministic pose chunks for parallel workers."""
-    source_id, source_label, interaction_pdb_path, input_sdf, _pose_order = source_task
-    if max_workers <= 1 or len(pose_order) <= 1:
-        return [(source_id, source_label, interaction_pdb_path, input_sdf, list(pose_order))]
-    chunk_size = max(1, math.ceil(len(pose_order) / max_workers))
-    tasks = []
-    for i in range(0, len(pose_order), chunk_size):
-        chunk = pose_order[i:i + chunk_size]
-        if not chunk:
-            continue
-        tasks.append((source_id, source_label, interaction_pdb_path, input_sdf, chunk))
-    return tasks
-
-
 def _precompute_pose_interactions(args, pose_indices, run_started):
     """Precompute pose interaction payloads for report visualizer tabs.
 
@@ -1218,56 +1203,7 @@ def _precompute_pose_interactions(args, pose_indices, run_started):
 
     n_workers = max(1, int(args.n_workers) if int(getattr(args, "n_workers", 0) or 0) > 0 else (os.cpu_count() or 2))
     max_workers = max(1, min(n_workers, len(source_tasks)))
-    if len(source_tasks) == 1 and len(pose_order) > 1 and n_workers > 1:
-        source_id, source_label, _pdb_path, _input, _poses = source_tasks[0]
-        pose_workers = max(1, min(n_workers, len(pose_order)))
-        pose_tasks = _chunked_pose_tasks_for_source(source_tasks[0], pose_order, pose_workers)
-        progress_log(
-            run_started,
-            "Precompute interactions",
-            extra=f"pose-parallel workers={pose_workers} chunks={len(pose_tasks)}",
-        )
-        try:
-            with ProcessPoolExecutor(max_workers=pose_workers) as ex:
-                fut_map = {ex.submit(_precompute_pose_interactions_for_source, task): idx for idx, task in enumerate(pose_tasks, start=1)}
-                partial = []
-                for fut in as_completed(fut_map):
-                    chunk_idx = fut_map[fut]
-                    out_id, source_out, err = fut.result()
-                    if err:
-                        raise RuntimeError(err)
-                    partial.append((chunk_idx, out_id, source_out))
-                    progress_log(
-                        run_started,
-                        "Precompute interactions",
-                        done=len(partial),
-                        total=len(pose_tasks),
-                        extra=f"protein={source_label}",
-                    )
-            merged = {}
-            for _chunk_idx, _out_id, source_out in sorted(partial, key=lambda x: x[0]):
-                if source_out:
-                    merged.update(source_out)
-            if merged:
-                out_by_source[source_id] = merged
-        except Exception as exc:
-            eprint(
-                f"Warning: pose-parallel interaction precompute failed for protein '{source_label}'; "
-                f"falling back to single-worker execution ({exc})."
-            )
-            out_id, source_out, err = _precompute_pose_interactions_for_source(source_tasks[0])
-            if err:
-                eprint(f"Warning: {err}")
-            if source_out:
-                out_by_source[out_id] = source_out
-            progress_log(
-                run_started,
-                "Precompute interactions",
-                done=1,
-                total=1,
-                extra=f"protein={source_label}",
-            )
-    elif max_workers > 1 and len(source_tasks) > 1:
+    if max_workers > 1 and len(source_tasks) > 1:
         progress_log(run_started, "Precompute interactions", extra=f"parallel workers={max_workers}")
         with ProcessPoolExecutor(max_workers=max_workers) as ex:
             fut_map = {ex.submit(_precompute_pose_interactions_for_source, task): task for task in source_tasks}
@@ -1664,28 +1600,37 @@ def _stage_export_and_report(
     grouped_sar = list(report_mol_df.groupby("scaffold_id", dropna=False))
     total_sar_groups = len(grouped_sar)
     n_workers = max(1, int(args.n_workers) if args.n_workers > 0 else (os.cpu_count() or 2))
+    io_workers = n_workers
 
     if n_workers > 1 and total_sar_groups > 1:
         progress_log(run_started, "Per-scaffold CSV export", extra=f"parallel workers={n_workers}")
         tasks = [(scaf_id, sdf.to_dict("records")) for scaf_id, sdf in grouped_sar]
-        chunksize = max(1, len(tasks) // max(1, n_workers * 4))
-        with ProcessPoolExecutor(max_workers=n_workers) as ex:
+        with ProcessPoolExecutor(max_workers=n_workers) as ex, ThreadPoolExecutor(max_workers=io_workers) as io_ex:
+            fut_map = {ex.submit(build_per_scaffold_substitution_table, task): idx for idx, task in enumerate(tasks, start=1)}
+            pending_writes = []
             done = 0
-            for scaf_hash, tdf in ex.map(build_per_scaffold_substitution_table, tasks, chunksize=chunksize):
+            for fut in as_completed(fut_map):
                 done += 1
+                scaf_hash, tdf = fut.result()
                 tname = prefixed_output_name(args.file_prefix, f"scaffold_{scaf_hash}_substitutions.csv")
                 tpath = os.path.join(per_scaf_dir, tname)
-                write_dataframe_csv(tdf, tpath, index=False, prefer_arrow=True)
+                pending_writes.append(io_ex.submit(write_dataframe_csv, tdf, tpath, False, True))
+                flush_pending_csv_writes(pending_writes, wait_all=False, max_pending=96)
                 if done % 100 == 0 or done == total_sar_groups:
                     progress_log(run_started, "Per-scaffold CSV export", done=done, total=total_sar_groups)
+            flush_pending_csv_writes(pending_writes, wait_all=True)
     else:
-        for sar_idx, (scaf_id, sdf) in enumerate(grouped_sar, start=1):
-            if sar_idx % 100 == 0:
-                progress_log(run_started, "Per-scaffold CSV export", done=sar_idx, total=total_sar_groups)
-            scaf_hash, tdf = build_per_scaffold_substitution_table((scaf_id, sdf.to_dict("records")))
-            tname = prefixed_output_name(args.file_prefix, f"scaffold_{scaf_hash}_substitutions.csv")
-            tpath = os.path.join(per_scaf_dir, tname)
-            write_dataframe_csv(tdf, tpath, index=False, prefer_arrow=True)
+        with ThreadPoolExecutor(max_workers=io_workers) as io_ex:
+            pending_writes = []
+            for sar_idx, (scaf_id, sdf) in enumerate(grouped_sar, start=1):
+                if sar_idx % 100 == 0:
+                    progress_log(run_started, "Per-scaffold CSV export", done=sar_idx, total=total_sar_groups)
+                scaf_hash, tdf = build_per_scaffold_substitution_table((scaf_id, sdf.to_dict("records")))
+                tname = prefixed_output_name(args.file_prefix, f"scaffold_{scaf_hash}_substitutions.csv")
+                tpath = os.path.join(per_scaf_dir, tname)
+                pending_writes.append(io_ex.submit(write_dataframe_csv, tdf, tpath, False, True))
+                flush_pending_csv_writes(pending_writes, wait_all=False, max_pending=96)
+            flush_pending_csv_writes(pending_writes, wait_all=True)
     progress_log(run_started, "Per-scaffold CSV export complete", done=total_sar_groups, total=total_sar_groups)
 
     # QC summary.
@@ -1715,34 +1660,11 @@ def _stage_export_and_report(
         rep_subset = representative_ranked_subset(subset, top_n=args.top_per_scaffold)
         if "mol_index" in rep_subset.columns:
             pose_indices.update(int(i) for i in rep_subset["mol_index"].dropna().tolist())
+    pose_sdf_by_index = sanitize_sdf_blocks_for_viewer(
+        read_sdf_blocks_by_index(args.input, pose_indices)
+    )
     hbond_residue_options, scaffold_hbond_map = build_hbond_residue_filter_data(report_mol_df, scaf_df)
-
-    # Build independent report payloads concurrently to reduce end-to-end wall time.
-    progress_log(run_started, "Report payload precompute started")
-    with ThreadPoolExecutor(max_workers=max(1, min(n_workers, 4))) as prep_ex:
-        pose_sdf_future = prep_ex.submit(read_sdf_blocks_by_index, args.input, pose_indices)
-        pose_inter_future = prep_ex.submit(_precompute_pose_interactions, args, pose_indices, run_started)
-        scaffold_export_future = prep_ex.submit(
-            collect_scaffold_export_data,
-            report_mol_df,
-            central_df.head(args.max_scaffolds_in_report),
-            args.input,
-            args.top_per_scaffold,
-        )
-        prop_panel_future = prep_ex.submit(
-            _extract_mol_props_for_report,
-            args.input,
-            mol_df,
-            scaf_df,
-            args.numeric_sd_props,
-            args.text_sd_props,
-            run_started,
-        )
-        pose_sdf_by_index = sanitize_sdf_blocks_for_viewer(pose_sdf_future.result())
-        pose_interactions_by_index = pose_inter_future.result()
-        scaffold_export_data = scaffold_export_future.result()
-        mol_props_data, scaffold_mol_map, mol_text_props_data, text_prop_value_counts = prop_panel_future.result()
-    progress_log(run_started, "Report payload precompute complete")
+    pose_interactions_by_index = _precompute_pose_interactions(args, pose_indices, run_started)
 
     # Write core outputs.
     progress_log(run_started, "Core CSV writing started")
@@ -1752,14 +1674,35 @@ def _stage_export_and_report(
         ascending=[False, False, False],
         na_position="last",
     )
-    write_dataframe_csv(mol_out, os.path.join(args.outdir, molecule_summary_name), index=False, prefer_arrow=True)
-    write_dataframe_csv(scaf_out, os.path.join(args.outdir, scaffold_summary_name), index=False, prefer_arrow=True)
-    write_dataframe_csv(central_df, os.path.join(args.outdir, central_ideas_name), index=False, prefer_arrow=True)
+    with ThreadPoolExecutor(max_workers=io_workers) as io_ex:
+        write_futs = [
+            io_ex.submit(write_dataframe_csv, mol_out, os.path.join(args.outdir, molecule_summary_name), False, True),
+            io_ex.submit(write_dataframe_csv, scaf_out, os.path.join(args.outdir, scaffold_summary_name), False, True),
+            io_ex.submit(write_dataframe_csv, central_df, os.path.join(args.outdir, central_ideas_name), False, True),
+        ]
+        for fut in write_futs:
+            fut.result()
     progress_log(run_started, "Core CSV writing complete")
 
     # HTML report.
     figures = []
     progress_log(run_started, "HTML report building started")
+    scaffold_export_data = collect_scaffold_export_data(
+        report_mol_df,
+        central_df.head(args.max_scaffolds_in_report),
+        args.input,
+        args.top_per_scaffold,
+    )
+
+    # Properties panel data: SDF tag values + scaffold→member map.
+    mol_props_data, scaffold_mol_map, mol_text_props_data, text_prop_value_counts = _extract_mol_props_for_report(
+        args.input,
+        mol_df,
+        scaf_df,
+        args.numeric_sd_props,
+        args.text_sd_props,
+        run_started,
+    )
 
     write_html_report(
         args.outdir,

@@ -8,7 +8,7 @@ python run_adme.py \
     --output direct_linker_enumeration_docking_pose_all_BB_SMILES_adme.csv \
     [--output-linear direct_linker_enumeration_docking_pose_all_BB_SMILES_adme_linear.csv] \
     [--smiles-column SMILES] \
-    [--checkpoint /home/cjamieson/bin/reinvent/adme_models/2026_03_01/model.pt]
+    [--checkpoint /home/ppadmin/PropertyCalculator/models/model_0/model.pt]
 """
 
 import argparse
@@ -23,7 +23,7 @@ import pandas as pd
 # Configuration
 # --------------------------------------------------------------------------- #
 _CONDA_ENV = "/home/cjamieson/anaconda3/envs/reinvent4.5"
-_DEFAULT_CHECKPOINT = "/home/cjamieson/bin/reinvent/adme_models/2026_03_01/model.pt"
+_DEFAULT_CHECKPOINT = "/home/ppadmin/PropertyCalculator/models/model_0/model.pt"
 _DEFAULT_SMILES_COL = "SMILES"
 
 # Columns predicted as log10 that need back-transforming to linear scale.

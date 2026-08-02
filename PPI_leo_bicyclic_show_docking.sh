@@ -12,14 +12,14 @@ else
 fi
 
 "${PYTHON_CMD[@]}" process_docking_IF_show_docking.py \
-	--input Wuxi_Enamine_docking_pose_3D_w_ADME.sdf \
-	--protein-pdb "$SCRIPT_DIR/6782_protein.pdb" \
-	--file-prefix VS_PPI_head_06052026 \
-	--interaction-csv "$SCRIPT_DIR/Wuxi_Enamine_direct.csv" \
+	--input Wuxi_Enamine_Leo_Bicyclic_docking_pose_3D_filtered_w_ADME.sdf \
+	--protein-pdb STAT6-1669872_wo_lig.pdb \
+	--file-prefix VS_PPI_Leo_Bicyclic_headgroup_screen_06052026 \
+	--interaction-csv "$SCRIPT_DIR/Wuxi_Enamine_Leo_Bicyclic_IF.csv" \
 	--interaction-id-col Title \
 	--interaction-count-col interaction_count \
 	--outdir "$SCRIPT_DIR" \
-	--ref-ligand-sdf ref_structures.sdf \
+	--ref-ligand-sdf Leo_Bicyclic_ref_pose.sdf \
 	--max-molecular-weight 800 \
 	--max-rotatable-bonds 13 \
 	--max-hbond-donors 2 \
