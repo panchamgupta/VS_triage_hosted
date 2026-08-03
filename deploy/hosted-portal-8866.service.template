@@ -1,0 +1,31 @@
+[Unit]
+Description=Hosted Docking Portal (Port 8866)
+After=network.target
+
+[Service]
+User=hostedportal
+Group=hostedportal
+WorkingDirectory=/opt/hosted-docking-portal
+Environment=HOSTED_PORTAL_ENV=production
+Environment=HOSTED_PORTAL_HOST=0.0.0.0
+Environment=HOSTED_PORTAL_PORT=8866
+Environment=HOSTED_PORTAL_BASE_URL=http://10.17.7.88:8866
+Environment=HOSTED_PORTAL_RELEASE_ROOT=/data/docking-portal/releases
+Environment=HOSTED_PORTAL_CACHE_DIR=/var/cache/hosted-docking-portal
+Environment=HOSTED_PORTAL_LOG_LEVEL=INFO
+Environment=HOSTED_PORTAL_GUNICORN_BIND=0.0.0.0:8866
+Environment=HOSTED_PORTAL_GUNICORN_WORKERS=3
+Environment=HOSTED_PORTAL_GUNICORN_THREADS=2
+ExecStart=/opt/hosted-docking-portal/.venv/bin/gunicorn -c deploy/gunicorn.conf.py wsgi:app
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/var/cache/hosted-docking-portal
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

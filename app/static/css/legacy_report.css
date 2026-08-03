@@ -1,0 +1,140 @@
+.legacy-report-host {
+    --bg: #f3f6fa;
+    --card: #ffffff;
+    --border: #d8e2ee;
+    --accent: #0b6e4f;
+    --muted: #5f7288;
+    --ink: #1f3551;
+    color: var(--ink);
+}
+
+.legacy-report-host .hero {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--card);
+    padding: 20px 24px;
+    margin: 28px 0 20px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.05);
+}
+
+.legacy-report-host .panel {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--card);
+    padding: 14px;
+    margin: 12px 0;
+}
+
+.legacy-report-host h1 {
+    margin: 0 0 8px 0;
+    font-size: 30px;
+    color: var(--ink);
+}
+
+.legacy-report-host h2 {
+    margin: 0 0 10px 0;
+    color: var(--ink);
+}
+
+.legacy-report-host .small {
+    color: var(--muted);
+    margin-top: 0;
+}
+
+.legacy-report-host .smalltxt {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.legacy-report-host .kpi {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.legacy-report-host .kpi .box {
+    border: 1px solid var(--border);
+    background: #fbfdff;
+    border-radius: 10px;
+    padding: 10px;
+}
+
+.legacy-report-host .kpi .label {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.legacy-report-host .kpi .val {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--accent);
+}
+
+.legacy-report-host .legacy-small {
+    font-size: 14px !important;
+}
+
+.hosted-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin: 10px 0 14px;
+}
+
+.hosted-toolbar select {
+    background: #fff;
+    border: 1px solid #c4d0df;
+    color: #1f3551;
+    border-radius: 6px;
+    padding: 7px 10px;
+    font-size: 12px;
+    min-width: 300px;
+}
+
+.hosted-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #0b6e4f;
+    border: 1px solid #0b6e4f;
+    color: #fff;
+    border-radius: 8px;
+    padding: 7px 12px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.hosted-btn:hover {
+    background: #0a5f45;
+}
+
+.hosted-btn-secondary {
+    background: #fff;
+    color: #1f3551;
+    border-color: #c4d0df;
+}
+
+.hosted-btn-secondary:hover {
+    background: #f2f6fb;
+}
+
+.hosted-report-frame {
+    width: 100%;
+    min-height: 1200px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: #ffffff;
+}
+
+@media (max-width: 760px) {
+    .hosted-toolbar {
+        align-items: stretch;
+    }
+
+    .hosted-toolbar select,
+    .hosted-btn {
+        width: 100%;
+    }
+}

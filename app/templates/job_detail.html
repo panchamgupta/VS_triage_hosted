@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}Job {{ job.job_id }}{% endblock %}
+
+{% block content %}
+<section class="hero-shell">
+    <h1>Job Detail</h1>
+    <p class="lede">Job {{ job.job_id }}</p>
+    <div class="release-badges">
+        <span class="status-chip status-{{ job.status }}">{{ job.status }}</span>
+        <span class="release-meta">Created: {{ job.created_at or '-' }}</span>
+        <span class="release-meta">Updated: {{ job.updated_at or '-' }}</span>
+    </div>
+</section>
+
+<section class="panel-shell">
+    <h2>Summary</h2>
+    <table class="release-table">
+        <tbody>
+            <tr><th>Report</th><td>{{ (job.metadata.report_name if job.metadata else '') or '-' }}</td></tr>
+            <tr><th>Project</th><td>{{ (job.metadata.project_name if job.metadata else '') or '-' }}</td></tr>
+            <tr><th>Target</th><td>{{ (job.metadata.target_name if job.metadata else '') or '-' }}</td></tr>
+            <tr><th>Stage</th><td>{{ job.stage or '-' }}</td></tr>
+            <tr><th>Progress</th><td>{{ job.progress or 0 }}%</td></tr>
+            <tr><th>Message</th><td>{{ job.message or '-' }}</td></tr>
+            <tr><th>Error</th><td>{{ job.error or '-' }}</td></tr>
+            <tr><th>Release</th><td>{% if job.release_id %}<a href="{{ absolute_url_for('pages.release_view', release_id=job.release_id) }}">{{ job.release_id }}</a>{% else %}-{% endif %}</td></tr>
+            <tr><th>Runner</th><td>{{ job.runner_id or '-' }}</td></tr>
+            <tr><th>PID</th><td>{{ job.pid or '-' }}</td></tr>
+            <tr><th>Interrupted Reason</th><td>{{ job.interrupted_reason or '-' }}</td></tr>
+        </tbody>
+    </table>
+</section>
+
+<section class="panel-shell">
+    <h2>Log Tail</h2>
+    {% if log_payload and log_payload.log_tail %}
+    <pre>{% for line in log_payload.log_tail %}{{ line }}
+{% endfor %}</pre>
+    {% else %}
+    <div class="empty-state">No log lines are available.</div>
+    {% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}Operations{% endblock %}
+
+{% block content %}
+<section class="hero-shell">
+    <h1>Operations</h1>
+    <p class="lede">Operational telemetry across release validity, job lifecycle, and project coverage.</p>
+</section>
+
+<section class="panel-shell">
+    <h2>Snapshot</h2>
+    <div class="release-badges">
+        <span class="release-meta">Generated: {{ metrics.generated_at }}</span>
+        <span class="release-meta">Projects: {{ metrics.project_count }}</span>
+        <span class="release-meta">Releases: {{ metrics.release_count }}</span>
+        <span class="release-meta">Jobs: {{ metrics.job_count }}</span>
+        <span class="release-meta">Latest Job: {{ metrics.latest_job_created_at or '-' }}</span>
+    </div>
+</section>
+
+<section class="panel-shell">
+    <h2>Release Health</h2>
+    <table class="release-table">
+        <tbody>
+            <tr><th>Valid Releases</th><td>{{ metrics.valid_release_count }}</td></tr>
+            <tr><th>Invalid Releases</th><td>{{ metrics.invalid_release_count }}</td></tr>
+        </tbody>
+    </table>
+</section>
+
+<section class="panel-shell">
+    <h2>Job Status Distribution</h2>
+    {% if metrics.job_status_counts %}
+    <table class="release-table">
+        <thead><tr><th>Status</th><th>Count</th></tr></thead>
+        <tbody>
+            {% for status, count in metrics.job_status_counts.items() %}
+            <tr>
+                <td><span class="status-chip status-{{ status }}">{{ status }}</span></td>
+                <td>{{ count }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">No jobs have been submitted yet.</div>
+    {% endif %}
+</section>
+{% endblock %}

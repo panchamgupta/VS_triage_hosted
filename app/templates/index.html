@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+
+{% block title %}Hosted Docking Portal Releases{% endblock %}
+
+{% block content %}
+<section class="hero-shell">
+    <h1>Hosted Docking Portal</h1>
+    <p class="lede">Read-only Flask shell for published docking releases. This first slice adds release discovery, manifest-backed APIs, and local asset scaffolding without replacing the current static HTML report.</p>
+    <div class="release-launcher">
+        <label for="release-picker">Open release</label>
+        <select id="release-picker" data-release-picker>
+            {% for release in releases %}
+            {% if release.status == 'published' %}
+            <option value="{{ release.release_id }}" {% if release.release_id == selected_release %}selected{% endif %}>{{ release.display_name }}</option>
+            {% endif %}
+            {% endfor %}
+        </select>
+        <a class="button-link" href="{{ absolute_url_for('pages.release_view', release_id=selected_release) if selected_release else '#' }}" data-release-open {% if not selected_release %}aria-disabled="true"{% endif %}>Open Hosted Report</a>
+    </div>
+</section>
+
+<section class="panel-shell">
+    <div class="panel-head">
+        <h2>Available Releases</h2>
+        {% if selected_release %}
+        <a class="button-link" href="{{ absolute_url_for('pages.release_view', release_id=selected_release) }}">Open Default Release</a>
+        {% endif %}
+    </div>
+
+    {% if releases %}
+    <table class="release-table">
+        <thead>
+            <tr>
+                <th>Release</th>
+                <th>Program</th>
+                <th>Target</th>
+                <th>Created</th>
+                <th>Status</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for release in releases %}
+            <tr>
+                <td>
+                    <div class="release-name">{{ release.display_name }}</div>
+                    <div class="release-meta">{{ release.release_id }}</div>
+                    {% if release.description %}
+                    <div class="release-meta">{{ release.description }}</div>
+                    {% endif %}
+                </td>
+                <td>{{ release.program or '—' }}</td>
+                <td>{{ release.target or '—' }}</td>
+                <td>{{ release.created_at or '—' }}</td>
+                <td>
+                    <span class="status-chip status-{{ release.status }}">{{ release.status }}</span>
+                    {% if release.default %}
+                    <span class="status-chip status-default">default</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if release.status == 'published' %}
+                    <a class="button-link" href="{{ absolute_url_for('pages.release_view', release_id=release.release_id) }}">Open</a>
+                    {% else %}
+                    <span class="release-meta">Unavailable</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <p>No valid hosted releases were discovered.</p>
+        <p>Create a release directory under the configured release root and add a valid <code>manifest.json</code>.</p>
+    </div>
+    {% endif %}
+</section>
+
+<section class="panel-shell muted-panel">
+    <h2>Upload Docking Campaign</h2>
+    <p>Submit docking files, monitor stage-by-stage execution, and open the generated hosted report when publishing completes.</p>
+    <form id="job-create-form" class="upload-form" data-max-upload-mb="{{ max_upload_mb }}" data-job-poll-seconds="{{ job_poll_seconds }}">
+        <div class="form-grid">
+            <label>Report Name
+                <input type="text" name="report_name" required placeholder="STAT6 Leo Bicyclic Campaign">
+            </label>
+            <label>Project Name
+                <input type="text" name="project_name" required placeholder="PPI">
+            </label>
+            <label>Target Name
+                <input type="text" name="target_name" required placeholder="STAT6">
+            </label>
+            <label>Report Size
+                <select name="report_size">
+                    <option value="compact">Compact</option>
+                    <option value="standard">Standard</option>
+                    <option value="wide" selected>Wide</option>
+                    <option value="ultra">Ultra</option>
+                </select>
+            </label>
+            <label>Interaction ID Column
+                <input type="text" name="interaction_id_col" value="Title">
+            </label>
+            <label>Interaction Count Column
+                <input type="text" name="interaction_count_col" value="interaction_count">
+            </label>
+            <label>Scoring: Top Per Scaffold
+                <input type="number" min="1" max="100" name="top_per_scaffold" value="10">
+            </label>
+            <label>Max Scaffolds in Report
+                <input type="number" min="10" max="5000" name="max_scaffolds_in_report" value="500">
+            </label>
+            <label>Pipeline Worker Count
+                <input type="number" min="1" max="{{ max_n_workers }}" name="n_workers" value="{{ default_n_workers }}">
+            </label>
+        </div>
+
+        <div class="file-grid">
+            <label>Docking Pose SDF (required)
+                <input type="file" name="docking_sdf" accept=".sdf" required>
+                <span class="field-tag required">Required</span>
+            </label>
+            <label>Interaction Fingerprint CSV (required)
+                <input type="file" name="interaction_csv" accept=".csv" required>
+                <span class="field-tag required">Required</span>
+            </label>
+            <label>ADME / Property CSV (optional)
+                <input type="file" name="property_csv" accept=".csv">
+                <span class="field-tag optional">Optional</span>
+            </label>
+            <label>Protein PDB (optional)
+                <input type="file" name="protein_pdb" accept=".pdb">
+                <span class="field-tag optional">Optional</span>
+            </label>
+        </div>
+
+        <div id="upload-form-feedback" class="form-feedback" role="status" aria-live="polite"></div>
+
+        <div class="toggle-row">
+            <label><input type="checkbox" name="auto_detect_score" checked> Auto-detect docking score column</label>
+            <label><input type="checkbox" name="generate_all_mol_images"> Generate all molecule images</label>
+        </div>
+
+        <div class="actions-row">
+            <button type="submit" class="button-link">Generate Report</button>
+            <button type="button" class="button-link secondary" id="job-cancel-btn" disabled>Cancel Job</button>
+            <span class="inline-help">Max upload size per file: {{ max_upload_mb }} MB</span>
+        </div>
+    </form>
+
+    <div id="job-status-card" class="job-status-card" aria-live="polite" data-poll-seconds="{{ job_poll_seconds }}">
+        <h3>Generation Status</h3>
+        <div class="progress-wrap" id="job-progress-wrap" aria-hidden="true">
+            <div class="progress-track">
+                <div id="job-progress-bar" class="progress-bar" style="width:0%"></div>
+            </div>
+            <div class="progress-caption">
+                <span id="job-progress-text">0%</span>
+                <span id="job-stage-text">Waiting for submission</span>
+                <span id="job-elapsed-text">Elapsed: 00:00</span>
+            </div>
+        </div>
+
+        <div class="status-grid" id="job-status-grid">
+            <div><strong>Job ID:</strong> <span id="status-job-id">-</span></div>
+            <div><strong>Release ID:</strong> <span id="status-release-id">-</span></div>
+            <div><strong>Project:</strong> <span id="status-project">-</span></div>
+            <div><strong>Target:</strong> <span id="status-target">-</span></div>
+            <div><strong>Status:</strong> <span id="status-state">idle</span></div>
+            <div><strong>Progress:</strong> <span id="status-progress">0%</span></div>
+            <div><strong>Current Stage:</strong> <span id="status-stage">Waiting for submission</span></div>
+            <div><strong>Elapsed:</strong> <span id="status-elapsed">00:00</span></div>
+        </div>
+
+        <p id="job-message-text" class="release-meta">No active job.</p>
+        <p id="job-error-text" class="error-text hidden"></p>
+
+        <details id="job-log-viewer" class="log-viewer">
+            <summary>View Live Logs</summary>
+            <pre id="job-log-pre">No logs available.</pre>
+        </details>
+
+        <div id="job-outcome-panel" class="outcome-panel hidden">
+            <h4 id="job-outcome-title"></h4>
+            <p id="job-outcome-subtitle" class="release-meta"></p>
+            <div class="actions-row" id="job-outcome-actions"></div>
+            <p id="job-redirect-text" class="release-meta hidden"></p>
+        </div>
+    </div>
+</section>
+
+<section class="panel-shell muted-panel">
+    <h2>Local Asset Strategy</h2>
+    <p>The hosted portal serves CSS, JavaScript, and vendor libraries locally from the repository or deployment package. No external CDN references are used in this scaffold.</p>
+    <p>Vendor placeholders already exist for 3Dmol, Plotly, Bootstrap, RDKit, and fonts under <code>app/static/vendor/</code>.</p>
+</section>
+
+<section class="panel-shell muted-panel">
+    <h2>Frontend Migration Status</h2>
+    <p>See <code>HOSTED_FRONTEND_MIGRATION_STATUS.md</code> for section-by-section migration status, asset audit results, and the hosted-report extraction plan.</p>
+</section>
+{% endblock %}

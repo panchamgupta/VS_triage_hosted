@@ -1,0 +1,38 @@
+{
+  "release_id": "example_release",
+  "display_name": "R-group Docking Insight Report",
+  "created_at": "2026-08-02",
+  "program": "PPI",
+  "target": "STAT6",
+  "description": "Automated pattern discovery and medicinal chemistry prioritization from docking SDF plus interaction-count CSV.",
+  "files": {
+    "scaffolds": "data/scaffolds.json",
+    "molecules": "data/molecules.json",
+    "pose_index": "data/pose_index.json",
+    "static_report": "static_payload/report.html"
+  },
+  "counts": {
+    "scaffolds": 146,
+    "molecules": 1388,
+    "poses": 780
+  },
+  "features": {
+    "structure_search": true,
+    "motif_exclusion": true,
+    "pose_viewer": true,
+    "exports": true
+  },
+  "source": {
+    "report_html": "VS_PPI_Leo_Bicyclic_headgroup_screen_06052026_report.html",
+    "build_script": "scripts/create_example_release_from_report.py"
+  },
+  "diagnostics": {
+    "build_diagnostics": "build_diagnostics.json"
+  },
+  "frontend_migration": {
+    "overview": "preserved_via_static_payload",
+    "central_ideas": "preserved_via_static_payload",
+    "deep_dive": "preserved_via_static_payload",
+    "hosted_shell": "template_extracted"
+  }
+}

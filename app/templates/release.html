@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}{{ manifest.display_name }}{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{{ absolute_url_for('static', filename='css/legacy_report.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="legacy-report-host">
+    <section class="hero">
+        <h1>{{ manifest.display_name }}</h1>
+        <p class="small">{{ manifest.description }}</p>
+        <div class="kpi">
+            <div class="box"><div class="label">Program</div><div class="val legacy-small">{{ manifest.program }}</div></div>
+            <div class="box"><div class="label">Target</div><div class="val legacy-small">{{ manifest.target }}</div></div>
+            <div class="box"><div class="label">Molecules</div><div class="val">{{ summary.kpis.molecules or '—' }}</div></div>
+            <div class="box"><div class="label">Scaffolds</div><div class="val">{{ summary.kpis.scaffolds or '—' }}</div></div>
+            <div class="box"><div class="label">Poses</div><div class="val">{{ summary.kpis.poses or '—' }}</div></div>
+            <div class="box"><div class="label">Created</div><div class="val legacy-small">{{ manifest.created_at }}</div></div>
+        </div>
+    </section>
+
+    <section class="panel">
+        <h2>Hosted Release Wrapper</h2>
+        <p class="smalltxt">This hosted page preserves the generated HTML report as the source of truth while starting the migration into Flask templates and local static assets. The full report below is served from the release payload with patched local asset paths.</p>
+        <div class="hosted-toolbar">
+            <label class="smalltxt" for="release-picker-inline">Release</label>
+            <select id="release-picker-inline" data-release-picker>
+                {% for release in releases %}
+                {% if release.status == 'published' %}
+                <option value="{{ release.release_id }}" {% if release.release_id == release_id %}selected{% endif %}>{{ release.display_name }}</option>
+                {% endif %}
+                {% endfor %}
+            </select>
+            <a class="hosted-btn" href="{{ absolute_url_for('pages.release_view', release_id=release_id) }}" data-release-open>Open Selected Release</a>
+            {% if static_report_url %}
+            <a class="hosted-btn hosted-btn-secondary" href="{{ portal_base_url ~ static_report_url if portal_base_url else static_report_url }}" target="_blank" rel="noopener noreferrer">Open Full Report in New Tab</a>
+            {% endif %}
+            <a class="hosted-btn hosted-btn-secondary" href="{{ absolute_url_for('api_releases.get_release_manifest', release_id=release_id) }}">Manifest JSON</a>
+            <a class="hosted-btn hosted-btn-secondary" href="{{ absolute_url_for('api_scaffolds.list_scaffolds', release_id=release_id) }}">Scaffolds JSON</a>
+            <a class="hosted-btn hosted-btn-secondary" href="{{ absolute_url_for('api_molecules.list_molecules', release_id=release_id) }}">Molecules JSON</a>
+        </div>
+        <div class="todo-callout">
+            <strong>Migration status in this slice:</strong>
+            hero and top-level layout containers extracted into Flask templates; authoritative report preserved as a hosted payload; scaffold and molecule APIs backed by real release JSON; chart and 3D dependencies patched to locally served compatibility assets.
+        </div>
+        <!--
+            Existing generated report layout remains authoritative.
+            Current extraction status:
+            - migrated: top layout shell, release navigation, hosted wrapper styles
+            - preserved via hosted payload: Overview, filters, Central Ideas, deep dives, 3D viewer shell
+            - pending direct extraction: client-side filter logic, plot rendering, pose viewer internals, export toolbar wiring
+        -->
+    </section>
+
+    <section class="panel">
+        <h2>Authoritative Report Payload</h2>
+        <p class="smalltxt">The iframe below serves the current generated report with local asset references only. This preserves the existing medicinal chemistry workflow while the hosted UI is extracted incrementally.</p>
+        {% if static_report_url %}
+        <iframe id="hosted-report-shell" class="hosted-report-frame" src="{{ static_report_url }}" title="{{ manifest.display_name }} report" data-release-id="{{ release_id }}"></iframe>
+        {% else %}
+        <div class="lazy-placeholder">No static report payload is defined for this release.</div>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

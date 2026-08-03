@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}Projects{% endblock %}
+
+{% block content %}
+<section class="hero-shell">
+    <h1>Projects</h1>
+    <p class="lede">Attribution and rollups across releases and job execution history.</p>
+</section>
+
+<section class="panel-shell">
+    {% if projects %}
+    <table class="release-table">
+        <thead>
+            <tr>
+                <th>Project</th>
+                <th>Targets</th>
+                <th>Releases</th>
+                <th>Jobs</th>
+                <th>Completed</th>
+                <th>Failed</th>
+                <th>Orphaned</th>
+                <th>Last Release</th>
+                <th>Last Job</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in projects %}
+            <tr>
+                <td>{{ p.project_name }}</td>
+                <td>{{ p.targets | join(', ') if p.targets else '-' }}</td>
+                <td>{{ p.release_count }}</td>
+                <td>{{ p.job_count }}</td>
+                <td>{{ p.completed_job_count }}</td>
+                <td>{{ p.failed_job_count }}</td>
+                <td>{{ p.orphaned_job_count }}</td>
+                <td>{{ p.last_release_at or '-' }}</td>
+                <td>{{ p.last_job_at or '-' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">No projects are available yet.</div>
+    {% endif %}
+</section>
+{% endblock %}

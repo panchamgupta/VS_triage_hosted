@@ -1,0 +1,6 @@
+:(glob)**/*.py
+:(glob)**/*.sh
+:(glob)**/*.md
+README.md
+STAT6-1650495_wo_lig.pdb
+ref_structures.sdf

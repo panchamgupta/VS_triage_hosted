@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block title %}Job History{% endblock %}
+
+{% block content %}
+<section class="hero-shell">
+    <h1>Job History</h1>
+    <p class="lede">Browse durable job records with filters by status, project, target, and date range.</p>
+    <form class="history-filter-form" method="get" action="{{ absolute_url_for('pages.jobs_history_view') }}">
+        <label>Status
+            <select name="status">
+                <option value="" {% if not history.filters.status %}selected{% endif %}>All</option>
+                {% for s in ['queued', 'running', 'orphaned', 'failed', 'canceled', 'completed'] %}
+                <option value="{{ s }}" {% if history.filters.status == s %}selected{% endif %}>{{ s }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>Project
+            <input type="text" name="project" value="{{ history.filters.project }}" placeholder="PPI">
+        </label>
+        <label>Target
+            <input type="text" name="target" value="{{ history.filters.target }}" placeholder="STAT6">
+        </label>
+        <label>From
+            <input type="date" name="date_from" value="{{ history.filters.date_from }}">
+        </label>
+        <label>To
+            <input type="date" name="date_to" value="{{ history.filters.date_to }}">
+        </label>
+        <label>Per Page
+            <select name="per_page">
+                {% for n in [10, 20, 50, 100] %}
+                <option value="{{ n }}" {% if history.per_page == n %}selected{% endif %}>{{ n }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <button type="submit" class="button-link">Apply Filters</button>
+        <a class="button-link secondary" href="{{ absolute_url_for('pages.jobs_history_view') }}">Reset</a>
+    </form>
+</section>
+
+<section class="panel-shell">
+    <div class="panel-head">
+        <h2>Jobs</h2>
+        <span class="release-meta">{{ history.total }} result(s)</span>
+    </div>
+    {% if history["items"] %}
+    <table class="release-table">
+        <thead>
+            <tr>
+                <th>Job ID</th>
+                <th>Report</th>
+                <th>Project</th>
+                <th>Target</th>
+                <th>Status</th>
+                <th>Submitted</th>
+                <th>Duration</th>
+                <th>Release</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for job in history["items"] %}
+            <tr>
+                <td><span class="release-meta">{{ job.job_id }}</span></td>
+                <td>{{ (job.metadata.report_name if job.metadata else '') or '-' }}</td>
+                <td>{{ (job.metadata.project_name if job.metadata else '') or '-' }}</td>
+                <td>{{ (job.metadata.target_name if job.metadata else '') or '-' }}</td>
+                <td><span class="status-chip status-{{ job.status }}">{{ job.status }}</span></td>
+                <td>{{ job.created_at or '-' }}</td>
+                <td>
+                    {% if job.started_at and job.completed_at %}
+                    {{ job.started_at }} -> {{ job.completed_at }}
+                    {% else %}
+                    -
+                    {% endif %}
+                </td>
+                <td>
+                    {% if job.release_id %}
+                    <a href="{{ absolute_url_for('pages.release_view', release_id=job.release_id) }}">{{ job.release_id }}</a>
+                    {% else %}
+                    -
+                    {% endif %}
+                </td>
+                <td><a class="button-link secondary" href="{{ absolute_url_for('pages.job_detail_view', job_id=job.job_id) }}">Open</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <div class="pagination-row">
+        <span class="release-meta">Page {{ history.page }} of {{ history.total_pages }}</span>
+        <div class="pagination-links">
+            {% set prev_page = history.page - 1 %}
+            {% set next_page = history.page + 1 %}
+            {% if history.page > 1 %}
+            <a class="button-link secondary" href="{{ absolute_url_for('pages.jobs_history_view', status=history.filters.status, project=history.filters.project, target=history.filters.target, date_from=history.filters.date_from, date_to=history.filters.date_to, per_page=history.per_page, page=prev_page) }}">Previous</a>
+            {% endif %}
+            {% if history.page < history.total_pages %}
+            <a class="button-link secondary" href="{{ absolute_url_for('pages.jobs_history_view', status=history.filters.status, project=history.filters.project, target=history.filters.target, date_from=history.filters.date_from, date_to=history.filters.date_to, per_page=history.per_page, page=next_page) }}">Next</a>
+            {% endif %}
+        </div>
+    </div>
+    {% else %}
+    <div class="empty-state">No jobs match the selected filters.</div>
+    {% endif %}
+</section>
+{% endblock %}
