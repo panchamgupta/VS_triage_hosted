@@ -1,0 +1,41 @@
+
+$ /home/pgupta11/anaconda3/bin/python /home/pgupta11/Projects/STAT6_PPI/PPI_program_writing/R_group_mapping/advanced_problems/hosting_docking_portal/process_docking_IF_show_docking.py --input /home/pgupta11/Projects/STAT6_PPI/PPI_program_writing/R_group_mapping/advanced_problems/hosting_docking_portal/uploaded_files/20260803/1e91006d-8113-4cfb-813a-44a5d0aaf927/Wuxi_Enamine_Leo_Bicyclic_docking_pose_3D_filtered_w_ADME.sdf --interaction-csv /home/pgupta11/Projects/STAT6_PPI/PPI_program_writing/R_group_mapping/advanced_problems/hosting_docking_portal/uploaded_files/20260803/1e91006d-8113-4cfb-813a-44a5d0aaf927/direct_linker_all_IF.csv --interaction-id-col Title --interaction-count-col interaction_count --outdir /home/pgupta11/Projects/STAT6_PPI/PPI_program_writing/R_group_mapping/advanced_problems/hosting_docking_portal/jobs/8284da3b-a2c8-404e-9110-a6a779ec6e8a/workspace/report_build --file-prefix release_20260803_001 --top-per-scaffold 10 --max-scaffolds-in-report 500 --n-workers 8 --auto-detect-score
+[00:00.0] ✓  Run started  |  input=Wuxi_Enamine_Leo_Bicyclic_docking_pose_3D_filtered_w_ADME.sdf
+[00:00.0] ✓  Prefix cleanup  |  prefix=release_20260803_001 removed_files=0
+[00:00.0] ✓  Exclusion rules loaded  |  patterns=0 parse_failures=0
+[00:07.5]   3.5%  SDF parse 303/2417
+[00:07.8]  21.0%  SDF parse 2417/2417
+[00:07.8] ✓  SDF parse complete  |  excluded=0 invalid=0 elapsed=00:07.6
+[00:09.9] ✓  Interaction CSV merge complete  |  matched=0 unmatched=2417
+[00:12.2]  26.5%  Scaffold summary 25/829
+[00:14.3]  34.7%  Scaffold summary 400/829
+[00:16.4]  42.8%  Scaffold summary 775/829
+[00:16.7]  44.0%  Scaffold summary 829/829
+[00:16.7] ✓  Scaffold summary complete
+[00:19.0]  53.3%  Scaffold panels 5/154
+[00:21.1]  55.3%  Scaffold panels 45/154
+[00:23.3]  57.4%  Scaffold panels 85/154
+[00:25.7]  59.5%  Scaffold panels 125/154
+[00:26.8]  61.0%  Scaffold panels 154/154
+[00:26.9] ✓  Scaffold panel rendering complete
+[00:32.0]  65.5%  Per-scaffold CSV export started
+[00:34.2]  62.8%  Per-scaffold CSV export 100/829
+[00:36.4]  75.5%  Per-scaffold CSV export 800/829
+[00:36.5]  76.0%  Per-scaffold CSV export 829/829
+[00:36.8] ✓  Per-scaffold CSV export complete
+[00:44.2]  87.5%  Core CSV writing started
+[00:45.4] ✓  Core CSV writing complete
+Traceback (most recent call last):
+  File "/home/pgupta11/Projects/STAT6_PPI/PPI_program_writing/R_group_mapping/advanced_problems/hosting_docking_portal/process_docking_IF_show_docking.py", line 1841, in <module>
+    main()
+  File "/home/pgupta11/Projects/STAT6_PPI/PPI_program_writing/R_group_mapping/advanced_problems/hosting_docking_portal/process_docking_IF_show_docking.py", line 1802, in main
+    _stage_export_and_report(
+  File "/home/pgupta11/Projects/STAT6_PPI/PPI_program_writing/R_group_mapping/advanced_problems/hosting_docking_portal/process_docking_IF_show_docking.py", line 1707, in _stage_export_and_report
+    write_html_report(
+  File "/home/pgupta11/Projects/STAT6_PPI/PPI_program_writing/R_group_mapping/advanced_problems/hosting_docking_portal/report_helpers.py", line 1124, in write_html_report
+    structure_assets = ensure_structure_search_assets(outdir)
+  File "/home/pgupta11/Projects/STAT6_PPI/PPI_program_writing/R_group_mapping/advanced_problems/hosting_docking_portal/report_helpers.py", line 272, in ensure_structure_search_assets
+    rdkit_js_src, rdkit_wasm_src = _resolve_rdkit_asset_paths()
+  File "/home/pgupta11/Projects/STAT6_PPI/PPI_program_writing/R_group_mapping/advanced_problems/hosting_docking_portal/report_helpers.py", line 189, in _resolve_rdkit_asset_paths
+    raise FileNotFoundError(f"Missing structure-search asset(s): {missing}")
+FileNotFoundError: Missing structure-search asset(s): ['/home/pgupta11/Projects/STAT6_PPI/PPI_program_writing/R_group_mapping/advanced_problems/hosting_docking_portal/report_assets/vendor/rdkit/RDKit_minimal.js', '/home/pgupta11/Projects/STAT6_PPI/PPI_program_writing/R_group_mapping/advanced_problems/hosting_docking_portal/report_assets/vendor/rdkit/RDKit_minimal.wasm']

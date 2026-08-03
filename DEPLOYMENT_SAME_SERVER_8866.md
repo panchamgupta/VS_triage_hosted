@@ -65,7 +65,31 @@ export HOSTED_PORTAL_GUNICORN_BIND=0.0.0.0:8866
 ## 6. systemd Activation
 
 ```bash
+chmod +x deploy/start_hosted_portal.sh
 sudo cp deploy/hosted-portal-8866.service.template /etc/systemd/system/hosted-portal-8866.service
+
+# Optional: centralized overrides for this host (recommended)
+sudo tee /etc/default/hosted-portal-8866 >/dev/null <<'EOF'
+HOSTED_PORTAL_ENV=production
+HOSTED_PORTAL_HOST=0.0.0.0
+HOSTED_PORTAL_PORT=8866
+HOSTED_PORTAL_BASE_URL=http://10.17.7.88:8866
+HOSTED_PORTAL_RELEASE_ROOT=/data/docking-portal/releases
+HOSTED_PORTAL_UPLOAD_ROOT=/var/lib/hosted-docking-portal/uploads
+HOSTED_PORTAL_JOB_ROOT=/var/lib/hosted-docking-portal/jobs
+HOSTED_PORTAL_CACHE_DIR=/var/cache/hosted-docking-portal
+HOSTED_PORTAL_GUNICORN_BIND=0.0.0.0:8866
+HOSTED_PORTAL_GUNICORN_WORKERS=3
+HOSTED_PORTAL_GUNICORN_THREADS=2
+EOF
+
+sudo mkdir -p \
+	/var/lib/hosted-docking-portal/uploads \
+	/var/lib/hosted-docking-portal/jobs \
+	/var/cache/hosted-docking-portal \
+	/data/docking-portal/releases
+sudo chown -R hostedportal:hostedportal /var/lib/hosted-docking-portal /var/cache/hosted-docking-portal /data/docking-portal/releases
+
 sudo systemctl daemon-reload
 sudo systemctl enable --now hosted-portal-8866
 sudo systemctl status hosted-portal-8866 --no-pager

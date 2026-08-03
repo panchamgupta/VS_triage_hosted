@@ -5,6 +5,7 @@ import subprocess
 import sys
 import threading
 import uuid
+from rdkit import Chem
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
@@ -29,6 +30,10 @@ _ALLOWED_EXTENSIONS = {
     "property_csv": {".csv"},
     "protein_pdb": {".pdb"},
 }
+
+# Read up to 1 MB during SDF header validation to avoid false negatives
+# when the first record is large and '$$$$' appears after the first 4 KB.
+_SDF_VALIDATION_SCAN_BYTES = 1024 * 1024
 
 _STATUS_ORDER = {
     "queued": 0,
@@ -394,10 +399,21 @@ class JobService:
         docking_sdf = Path(uploaded["docking_sdf"])
         if docking_sdf.stat().st_size < 32:
             raise JobValidationError("Docking SDF file is too small to be valid.")
+
+        # Robust SDF gate:
+        # 1) Scan up to 1 MB for record delimiters to avoid short-head false negatives.
+        # 2) If none found, accept single-record MOL-like input only when RDKit can parse one molecule.
         with docking_sdf.open("r", encoding="utf-8", errors="ignore") as handle:
-            sdf_head = handle.read(4096)
-        if "$$$$" not in sdf_head:
-            raise JobValidationError("Docking SDF does not appear to contain valid SDF record delimiters.")
+            sdf_prefix = handle.read(_SDF_VALIDATION_SCAN_BYTES)
+
+        has_record_delimiter = "$$$$" in sdf_prefix
+        if not has_record_delimiter:
+            mol = Chem.MolFromMolBlock(sdf_prefix, removeHs=False, sanitize=False)
+            if mol is None:
+                raise JobValidationError(
+                    "Docking SDF does not appear to contain valid SDF records. "
+                    "Expected at least one '$$$$' record delimiter or a parseable MOL block."
+                )
 
         interaction_csv = Path(uploaded["interaction_csv"])
         with interaction_csv.open("r", encoding="utf-8", errors="ignore", newline="") as handle:

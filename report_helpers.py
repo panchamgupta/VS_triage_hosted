@@ -16,6 +16,7 @@ from shared_utils import hash_text, safe_float
 
 _REPORT_HELPERS_DIR = os.path.dirname(os.path.abspath(__file__))
 _REPORT_ASSET_VENDOR_DIR = os.path.join(_REPORT_HELPERS_DIR, "report_assets", "vendor")
+_APP_STATIC_VENDOR_DIR = os.path.join(_REPORT_HELPERS_DIR, "app", "static", "vendor")
 
 # Reference ligand indices are offset by this amount to never collide with real pose indices.
 _REF_LIGAND_INDEX_OFFSET = 1_000_000
@@ -167,24 +168,28 @@ _RDKIT_VENDOR_JS = os.path.join(_REPORT_ASSET_VENDOR_DIR, "rdkit", "RDKit_minima
 _RDKIT_VENDOR_WASM = os.path.join(_REPORT_ASSET_VENDOR_DIR, "rdkit", "RDKit_minimal.wasm")
 _RDKIT_LOCAL_JS = os.path.join(_REPORT_HELPERS_DIR, "report_assets", "rdkit", "RDKit_minimal.js")
 _RDKIT_LOCAL_WASM = os.path.join(_REPORT_HELPERS_DIR, "report_assets", "rdkit", "RDKit_minimal.wasm")
+_RDKIT_APP_VENDOR_JS = os.path.join(_APP_STATIC_VENDOR_DIR, "rdkit", "RDKit_minimal.js")
+_RDKIT_APP_VENDOR_WASM = os.path.join(_APP_STATIC_VENDOR_DIR, "rdkit", "RDKit_minimal.wasm")
 
 
 def _resolve_rdkit_asset_paths():
     js_candidates = [
         _RDKIT_VENDOR_JS,
         _RDKIT_LOCAL_JS,
+        _RDKIT_APP_VENDOR_JS,
     ]
     wasm_candidates = [
         _RDKIT_VENDOR_WASM,
         _RDKIT_LOCAL_WASM,
+        _RDKIT_APP_VENDOR_WASM,
     ]
     js_path = next((path for path in js_candidates if os.path.exists(path)), None)
     wasm_path = next((path for path in wasm_candidates if os.path.exists(path)), None)
     missing = []
     if js_path is None:
-        missing.append(_RDKIT_VENDOR_JS)
+        missing.append(f"js not found in: {js_candidates}")
     if wasm_path is None:
-        missing.append(_RDKIT_VENDOR_WASM)
+        missing.append(f"wasm not found in: {wasm_candidates}")
     if missing:
         raise FileNotFoundError(f"Missing structure-search asset(s): {missing}")
     return js_path, wasm_path

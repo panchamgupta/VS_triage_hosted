@@ -1,0 +1,52 @@
+
+$ /home/pgupta11/anaconda3/bin/python /home/pgupta11/Projects/STAT6_PPI/PPI_program_writing/R_group_mapping/advanced_problems/hosting_docking_portal/process_docking_IF_show_docking.py --input /home/pgupta11/Projects/STAT6_PPI/PPI_program_writing/R_group_mapping/advanced_problems/hosting_docking_portal/uploaded_files/20260803/ceb229ef-f798-4fb6-a341-acb5cc9d93e6/Wuxi_Enamine_Leo_Bicyclic_docking_pose_3D_filtered_w_ADME.sdf --interaction-csv /home/pgupta11/Projects/STAT6_PPI/PPI_program_writing/R_group_mapping/advanced_problems/hosting_docking_portal/uploaded_files/20260803/ceb229ef-f798-4fb6-a341-acb5cc9d93e6/Wuxi_Enamine_Leo_Bicyclic_IF.csv --interaction-id-col Title --interaction-count-col interaction_count --outdir /home/pgupta11/Projects/STAT6_PPI/PPI_program_writing/R_group_mapping/advanced_problems/hosting_docking_portal/jobs/fbf6a45f-8354-4789-9308-a1a649ee1253/workspace/report_build --file-prefix release_20260803_001 --top-per-scaffold 10 --max-scaffolds-in-report 500 --n-workers 8 --protein-pdb /home/pgupta11/Projects/STAT6_PPI/PPI_program_writing/R_group_mapping/advanced_problems/hosting_docking_portal/uploaded_files/20260803/ceb229ef-f798-4fb6-a341-acb5cc9d93e6/STAT6-1668418_wo_lig.pdb --auto-detect-score
+[00:00.0] ✓  Run started  |  input=Wuxi_Enamine_Leo_Bicyclic_docking_pose_3D_filtered_w_ADME.sdf
+[00:00.0] ✓  Prefix cleanup  |  prefix=release_20260803_001 removed_files=0
+[00:00.0] ✓  Exclusion rules loaded  |  patterns=0 parse_failures=0
+[00:07.6]   3.5%  SDF parse 303/2417
+[00:08.0]  21.0%  SDF parse 2417/2417
+[00:08.0] ✓  SDF parse complete  |  excluded=0 invalid=0 elapsed=00:07.8
+[00:08.9] ✓  Interaction CSV merge complete  |  matched=2417 unmatched=0
+[00:11.7]  26.5%  Scaffold summary 25/829
+[00:13.7]  34.7%  Scaffold summary 400/829
+[00:15.8]  42.8%  Scaffold summary 775/829
+[00:16.1]  44.0%  Scaffold summary 829/829
+[00:16.2] ✓  Scaffold summary complete
+[00:18.3]  53.3%  Scaffold panels 5/154
+[00:20.4]  55.3%  Scaffold panels 45/154
+[00:22.5]  57.4%  Scaffold panels 85/154
+[00:24.8]  59.5%  Scaffold panels 125/154
+[00:26.0]  61.0%  Scaffold panels 154/154
+[00:26.1] ✓  Scaffold panel rendering complete
+[00:31.0]  65.5%  Per-scaffold CSV export started
+[00:33.6]  62.8%  Per-scaffold CSV export 100/829
+[00:35.7]  75.5%  Per-scaffold CSV export 800/829
+[00:35.8]  76.0%  Per-scaffold CSV export 829/829
+[00:36.1] ✓  Per-scaffold CSV export complete
+[00:36.2] ✓  Protein cartoon PDB loaded  |  file=STAT6-1668418_wo_lig.pdb (source PDB for cartoon)
+[00:39.7]  76.0%  Protein converted to MOL2 | tool=obabel file=release_20260803_001_protein_1_STAT6-1668418_wo_lig_obabel.mol2
+[00:39.7] ✓  Protein structure loaded  |  file=release_20260803_001_protein_1_STAT6-1668418_wo_lig_obabel.mol2 format=mol2
+Warning: MDTraj secondary structure computation failed for '/home/pgupta11/Projects/STAT6_PPI/PPI_program_writing/R_group_mapping/advanced_problems/hosting_docking_portal/jobs/fbf6a45f-8354-4789-9308-a1a649ee1253/workspace/report_build/release_20260803_001_protein_1_STAT6-1668418_wo_lig_obabel.mol2': mdtraj is not installed; install it to enable MOL2-based DSSP. Falling back to JS geometry-based SS assignment.
+[00:51.9]  76.0%  Precompute interactions started | poses=823 proteins=1
+[02:35.1]  76.0%  Precompute interactions 1/1 | protein=STAT6-1668418_wo_lig.pdb
+[02:35.1] ✓  Precompute interactions complete  |  proteins_with_data=1
+[02:36.4] ✓  Core CSV writing complete
+[02:54.2] ✓  HTML report complete  |  /home/pgupta11/Projects/STAT6_PPI/PPI_program_writing/R_group_mapping/advanced_problems/hosting_docking_portal/jobs/fbf6a45f-8354-4789-9308-a1a649ee1253/workspace/report_build/release_20260803_001_report.html
+[02:54.3] ✔  All stages complete  |  total 02:54.3
+Read 2417 molecules (0 invalid SDF records skipped).
+Excluded by smiles rules: 0 (patterns=0, parse_failures=0).
+Top exclusion hits: none
+Matched IF rows to molecules: 2417 (unmatched: 0)
+Wrote: /home/pgupta11/Projects/STAT6_PPI/PPI_program_writing/R_group_mapping/advanced_problems/hosting_docking_portal/jobs/fbf6a45f-8354-4789-9308-a1a649ee1253/workspace/report_build/release_20260803_001_molecule_summary.csv
+Wrote: /home/pgupta11/Projects/STAT6_PPI/PPI_program_writing/R_group_mapping/advanced_problems/hosting_docking_portal/jobs/fbf6a45f-8354-4789-9308-a1a649ee1253/workspace/report_build/release_20260803_001_scaffold_summary.csv
+Wrote: /home/pgupta11/Projects/STAT6_PPI/PPI_program_writing/R_group_mapping/advanced_problems/hosting_docking_portal/jobs/fbf6a45f-8354-4789-9308-a1a649ee1253/workspace/report_build/release_20260803_001_central_ideas.csv
+Wrote: /home/pgupta11/Projects/STAT6_PPI/PPI_program_writing/R_group_mapping/advanced_problems/hosting_docking_portal/jobs/fbf6a45f-8354-4789-9308-a1a649ee1253/workspace/report_build/release_20260803_001_qc_summary.csv
+Wrote: /home/pgupta11/Projects/STAT6_PPI/PPI_program_writing/R_group_mapping/advanced_problems/hosting_docking_portal/jobs/fbf6a45f-8354-4789-9308-a1a649ee1253/workspace/report_build/release_20260803_001_report.html
+Total runtime: 02:54.3
+
+$ /home/pgupta11/anaconda3/bin/python /home/pgupta11/Projects/STAT6_PPI/PPI_program_writing/R_group_mapping/advanced_problems/hosting_docking_portal/scripts/create_example_release_from_report.py --report-html /home/pgupta11/Projects/STAT6_PPI/PPI_program_writing/R_group_mapping/advanced_problems/hosting_docking_portal/jobs/fbf6a45f-8354-4789-9308-a1a649ee1253/workspace/report_build/release_20260803_001_report.html --release-id release_20260803_001 --release-root /home/pgupta11/Projects/STAT6_PPI/PPI_program_writing/R_group_mapping/advanced_problems/hosting_docking_portal/releases --report-max-width 1800
+Created example release at /home/pgupta11/Projects/STAT6_PPI/PPI_program_writing/R_group_mapping/advanced_problems/hosting_docking_portal/releases/release_20260803_001
+Wrote diagnostics: /home/pgupta11/Projects/STAT6_PPI/PPI_program_writing/R_group_mapping/advanced_problems/hosting_docking_portal/releases/release_20260803_001/build_diagnostics.json
+
+$ /home/pgupta11/anaconda3/bin/python /home/pgupta11/Projects/STAT6_PPI/PPI_program_writing/R_group_mapping/advanced_problems/hosting_docking_portal/scripts/validate_release_manifest.py /home/pgupta11/Projects/STAT6_PPI/PPI_program_writing/R_group_mapping/advanced_problems/hosting_docking_portal/releases/release_20260803_001
+PASS: valid manifest for release 'release_20260803_001'

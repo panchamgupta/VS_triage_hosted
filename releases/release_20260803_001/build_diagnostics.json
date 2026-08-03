@@ -1,0 +1,20 @@
+{
+  "release_id": "release_20260803_001",
+  "report_html": "/home/pgupta11/Projects/STAT6_PPI/PPI_program_writing/R_group_mapping/advanced_problems/hosting_docking_portal/jobs/fbf6a45f-8354-4789-9308-a1a649ee1253/workspace/report_build/release_20260803_001_report.html",
+  "report_max_width": 1800,
+  "counts": {
+    "scaffolds": 154,
+    "molecules": 1590,
+    "poses": 823
+  },
+  "viewer_payload_checks": {
+    "has_pose_entries": true,
+    "has_protein_payload": true,
+    "protein_source_count": 1,
+    "uses_local_3dmol": true,
+    "uses_local_plotly": true
+  },
+  "known_limitations": [
+    "Current local 3Dmol/Plotly/RDKit files are compatibility shims; full rendering requires real vendored upstream libraries."
+  ]
+}
