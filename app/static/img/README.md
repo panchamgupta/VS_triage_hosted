@@ -1,0 +1,1 @@
+Reserved for local image assets used by the hosted portal shell.

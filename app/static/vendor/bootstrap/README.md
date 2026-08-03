@@ -1,0 +1,1 @@
+Place locally vendored Bootstrap assets here only if the migrated report requires them.

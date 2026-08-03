@@ -1,0 +1,1 @@
+Place locally vendored 3Dmol.js assets here.

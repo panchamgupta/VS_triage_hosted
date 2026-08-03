@@ -1,0 +1,1 @@
+Place locally vendored RDKit Minimal JavaScript and WASM assets here.
