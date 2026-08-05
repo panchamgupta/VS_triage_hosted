@@ -555,3 +555,77 @@
 2026-08-04 18:12:02,607 INFO [hosted_portal.votes] Vote recorded
 2026-08-04 18:12:02,612 INFO [app] Logging configured
 2026-08-04 18:12:02,613 INFO [app] Startup validation complete
+2026-08-05 06:04:05,472 INFO [app] Logging configured
+2026-08-05 06:04:05,482 INFO [app] Startup validation complete
+2026-08-05 06:04:05,532 INFO [app] Logging configured
+2026-08-05 06:04:05,541 INFO [app] Startup validation complete
+2026-08-05 06:04:05,563 WARNING [hosted_portal.releases] Release directory deleted
+2026-08-05 06:04:05,566 INFO [app] Logging configured
+2026-08-05 06:04:05,575 INFO [app] Startup validation complete
+2026-08-05 06:04:05,599 INFO [app] Logging configured
+2026-08-05 06:04:05,608 INFO [app] Startup validation complete
+2026-08-05 06:04:05,660 INFO [app] Logging configured
+2026-08-05 06:04:05,670 INFO [app] Startup validation complete
+2026-08-05 06:04:05,730 INFO [app] Logging configured
+2026-08-05 06:04:05,739 INFO [app] Startup validation complete
+2026-08-05 06:04:05,774 INFO [app] Logging configured
+2026-08-05 06:04:05,783 INFO [app] Startup validation complete
+2026-08-05 06:04:05,822 INFO [app] Logging configured
+2026-08-05 06:04:05,831 INFO [app] Startup validation complete
+2026-08-05 06:04:05,859 INFO [app] Logging configured
+2026-08-05 06:04:05,870 INFO [app] Startup validation complete
+2026-08-05 06:04:05,905 INFO [app] Logging configured
+2026-08-05 06:04:05,918 INFO [app] Startup validation complete
+2026-08-05 06:04:05,965 INFO [app] Logging configured
+2026-08-05 06:04:05,975 INFO [app] Startup validation complete
+2026-08-05 06:04:05,996 INFO [hosted_portal.votes] Vote recorded
+2026-08-05 06:04:06,002 INFO [hosted_portal.votes] Vote recorded
+2026-08-05 06:04:06,009 INFO [app] Logging configured
+2026-08-05 06:04:06,020 INFO [app] Startup validation complete
+2026-08-05 06:04:06,042 INFO [hosted_portal.votes] Vote recorded
+2026-08-05 06:04:06,047 INFO [app] Logging configured
+2026-08-05 06:04:06,058 INFO [app] Startup validation complete
+2026-08-05 06:04:06,081 INFO [hosted_portal.votes] Vote recorded
+2026-08-05 06:04:06,085 INFO [hosted_portal.votes] Vote recorded
+2026-08-05 06:04:06,093 INFO [app] Logging configured
+2026-08-05 06:04:06,105 INFO [app] Startup validation complete
+2026-08-05 06:04:06,127 INFO [hosted_portal.votes] Vote recorded
+2026-08-05 06:04:06,132 INFO [app] Logging configured
+2026-08-05 06:04:06,133 INFO [app] Startup validation complete
+2026-08-05 06:11:56,209 INFO [app] Logging configured
+2026-08-05 06:11:56,225 INFO [app] Startup validation complete
+2026-08-05 06:11:56,273 INFO [app] Logging configured
+2026-08-05 06:11:56,286 INFO [app] Startup validation complete
+2026-08-05 06:11:56,306 WARNING [hosted_portal.releases] Release directory deleted
+2026-08-05 06:11:56,310 INFO [app] Logging configured
+2026-08-05 06:11:56,322 INFO [app] Startup validation complete
+2026-08-05 06:11:56,346 INFO [app] Logging configured
+2026-08-05 06:11:56,357 INFO [app] Startup validation complete
+2026-08-05 06:11:56,406 INFO [app] Logging configured
+2026-08-05 06:11:56,419 INFO [app] Startup validation complete
+2026-08-05 06:11:56,476 INFO [app] Logging configured
+2026-08-05 06:11:56,489 INFO [app] Startup validation complete
+2026-08-05 06:11:56,518 INFO [app] Logging configured
+2026-08-05 06:11:56,531 INFO [app] Startup validation complete
+2026-08-05 06:11:56,564 INFO [app] Logging configured
+2026-08-05 06:11:56,578 INFO [app] Startup validation complete
+2026-08-05 06:11:56,603 INFO [app] Logging configured
+2026-08-05 06:11:56,616 INFO [app] Startup validation complete
+2026-08-05 06:11:56,649 INFO [app] Logging configured
+2026-08-05 06:11:56,662 INFO [app] Startup validation complete
+2026-08-05 06:11:56,704 INFO [app] Logging configured
+2026-08-05 06:11:56,717 INFO [app] Startup validation complete
+2026-08-05 06:11:56,738 INFO [hosted_portal.votes] Vote recorded
+2026-08-05 06:11:56,743 INFO [hosted_portal.votes] Vote recorded
+2026-08-05 06:11:56,750 INFO [app] Logging configured
+2026-08-05 06:11:56,762 INFO [app] Startup validation complete
+2026-08-05 06:11:56,784 INFO [hosted_portal.votes] Vote recorded
+2026-08-05 06:11:56,789 INFO [app] Logging configured
+2026-08-05 06:11:56,801 INFO [app] Startup validation complete
+2026-08-05 06:11:56,823 INFO [hosted_portal.votes] Vote recorded
+2026-08-05 06:11:56,827 INFO [hosted_portal.votes] Vote recorded
+2026-08-05 06:11:56,833 INFO [app] Logging configured
+2026-08-05 06:11:56,845 INFO [app] Startup validation complete
+2026-08-05 06:11:56,866 INFO [hosted_portal.votes] Vote recorded
+2026-08-05 06:11:56,871 INFO [app] Logging configured
+2026-08-05 06:11:56,872 INFO [app] Startup validation complete

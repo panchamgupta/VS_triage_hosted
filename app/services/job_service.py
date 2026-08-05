@@ -36,6 +36,13 @@ _ALLOWED_EXTENSIONS = {
 # when the first record is large and '$$$$' appears after the first 4 KB.
 _SDF_VALIDATION_SCAN_BYTES = 1024 * 1024
 
+_DEFAULT_INTERACTION_RESIDUES = (
+    "A467,A468,A470,A473,A486,A487,A488,A489,"
+    "A490,A491,A492,A533,A536,A538,A543"
+)
+
+_DEFAULT_INTERACTION_COUNT_COL = "interaction_count"
+
 _STATUS_ORDER = {
     "queued": 0,
     "running": 1,
@@ -87,7 +94,7 @@ class JobService:
 
     def create_job(self, form, files):
         normalized = self._normalize_form(form)
-        upload_file_map = self._store_uploads(files)
+        upload_file_map = self._store_uploads(files, normalized)
         release_id = self._allocate_release_id()
 
         now = self._utcnow()
@@ -132,6 +139,8 @@ class JobService:
             "pipeline": {
                 "interaction_id_col": normalized["interaction_id_col"],
                 "interaction_count_col": normalized["interaction_count_col"],
+                "interaction_residues": normalized["interaction_residues"],
+                "interaction_csv_precomputed": normalized["interaction_csv_precomputed"],
                 "top_per_scaffold": normalized["top_per_scaffold"],
                 "max_scaffolds_in_report": normalized["max_scaffolds_in_report"],
                 "n_workers": normalized["n_workers"],
@@ -341,7 +350,9 @@ class JobService:
         uploader_email = str(form.get("uploader_email", "")).strip()
         uploader_group = str(form.get("uploader_group", "")).strip()
         interaction_id_col = str(form.get("interaction_id_col", "Title")).strip() or "Title"
-        interaction_count_col = str(form.get("interaction_count_col", "interaction_count")).strip() or "interaction_count"
+        interaction_residues = str(form.get("interaction_residues", _DEFAULT_INTERACTION_RESIDUES)).strip()
+        interaction_residues = interaction_residues or _DEFAULT_INTERACTION_RESIDUES
+        interaction_csv_precomputed = self._coerce_bool(form.get("interaction_csv_precomputed", "false"))
         property_csv_id_col = str(form.get("property_csv_id_col", "ID")).strip() or "ID"
         sdf_id_field = str(form.get("sdf_id_field", "_Name")).strip() or "_Name"
         top_per_scaffold = self._coerce_int(form.get("top_per_scaffold", 10), "top_per_scaffold", 1, 100)
@@ -376,7 +387,9 @@ class JobService:
             "uploader_email": uploader_email,
             "uploader_group": uploader_group,
             "interaction_id_col": interaction_id_col,
-            "interaction_count_col": interaction_count_col,
+            "interaction_count_col": _DEFAULT_INTERACTION_COUNT_COL,
+            "interaction_residues": interaction_residues,
+            "interaction_csv_precomputed": interaction_csv_precomputed,
             "property_csv_id_col": property_csv_id_col,
             "sdf_id_field": sdf_id_field,
             "top_per_scaffold": top_per_scaffold,
@@ -401,7 +414,7 @@ class JobService:
             return self._coerce_int(raw_width or 2200, "report_max_width", 1200, 3800)
         raise JobValidationError("Invalid report_size. Allowed values: compact, standard, wide, ultra, custom.")
 
-    def _store_uploads(self, files):
+    def _store_uploads(self, files, normalized):
         docking_sdf = files.get("docking_sdf")
         interaction_csv = files.get("interaction_csv")
         property_csv = files.get("property_csv")
@@ -425,7 +438,7 @@ class JobService:
         if protein_pdb is not None and protein_pdb.filename:
             stored["protein_pdb"] = self._save_upload(protein_pdb, raw_upload_dir, "protein_pdb")
 
-        self._validate_file_schemas(stored)
+        self._validate_file_schemas(stored, normalized)
         return stored
 
     def _save_upload(self, upload, output_dir, field_name):
@@ -466,7 +479,7 @@ class JobService:
             expected = ", ".join(sorted(allowed))
             raise JobValidationError(f"{field_name} must be one of: {expected}")
 
-    def _validate_file_schemas(self, uploaded):
+    def _validate_file_schemas(self, uploaded, normalized):
         docking_sdf = Path(uploaded["docking_sdf"])
         if docking_sdf.stat().st_size < 32:
             raise JobValidationError("Docking SDF file is too small to be valid.")
@@ -493,7 +506,9 @@ class JobService:
         if not headers:
             raise JobValidationError("Interaction CSV is missing a header row.")
 
-        required_headers = {"Title", "interaction_count"}
+        required_headers = {str(normalized.get("interaction_id_col") or "Title")}
+        if normalized.get("interaction_csv_precomputed"):
+            required_headers.add(str(normalized.get("interaction_count_col") or "interaction_count"))
         missing = sorted(name for name in required_headers if name not in headers)
         if missing:
             raise JobValidationError(
@@ -612,11 +627,38 @@ class JobService:
                 self._run_command(job_id, merge_command)
                 input_sdf_path = merged_sdf
 
+            interaction_csv_for_pipeline = Path(uploads["interaction_csv"])
+            if not inputs.get("interaction_csv_precomputed"):
+                self._set_state(
+                    job_id,
+                    stage="Generating Interaction Frequencies",
+                    progress=30,
+                    message="Generating interaction frequencies from raw interaction CSV.",
+                )
+                generated_interaction_csv = workspace_dir / "interaction_frequencies.csv"
+                interaction_command = [
+                    sys.executable,
+                    str(self.repo_root / "count_interaction_frequency.py"),
+                    "-i",
+                    str(uploads["interaction_csv"]),
+                    "-o",
+                    str(generated_interaction_csv),
+                    "--title-col",
+                    inputs["interaction_id_col"],
+                    "--residues",
+                    inputs["interaction_residues"],
+                ]
+                self._run_command(job_id, interaction_command)
+                if not generated_interaction_csv.exists():
+                    raise RuntimeError("Interaction frequency generation failed. Generated CSV was not created.")
+                self._validate_generated_interaction_csv(generated_interaction_csv, inputs)
+                interaction_csv_for_pipeline = generated_interaction_csv
+
             self._set_state(
                 job_id,
-                stage="Computing Interaction Summaries",
-                progress=35,
-                message="Running canonical docking workflow.",
+                stage="Computing Scaffold Analytics",
+                progress=50,
+                message="Running docking analytics workflow.",
             )
             file_prefix = self._sanitize_release_token(job["release_id"])
             report_filename = prefixed_output_name(file_prefix, "report.html")
@@ -635,7 +677,7 @@ class JobService:
                 "--input",
                 str(input_sdf_path),
                 "--interaction-csv",
-                str(uploads["interaction_csv"]),
+                str(interaction_csv_for_pipeline),
                 "--interaction-id-col",
                 inputs["interaction_id_col"],
                 "--interaction-count-col",
@@ -667,14 +709,8 @@ class JobService:
 
             self._set_state(
                 job_id,
-                stage="Generating Scaffold Analytics",
-                progress=55,
-                message="Preparing scaffold analytics and report assets.",
-            )
-            self._set_state(
-                job_id,
                 stage="Building Report",
-                progress=70,
+                progress=75,
                 message="Building hosted report package.",
             )
             package_command = [
@@ -693,14 +729,8 @@ class JobService:
 
             self._set_state(
                 job_id,
-                stage="Packaging Release",
-                progress=85,
-                message="Packaging immutable release payload.",
-            )
-            self._set_state(
-                job_id,
                 stage="Publishing Release",
-                progress=95,
+                progress=90,
                 message="Validating manifest and finalizing publication.",
             )
             validate_command = [
@@ -737,13 +767,16 @@ class JobService:
                 current_job = self._jobs.get(job_id)
                 if current_job is not None:
                     failure_stage = str(current_job.get("stage") or "Unknown")
+            failure_message = "Report generation failed."
+            if failure_stage == "Generating Interaction Frequencies":
+                failure_message = "Interaction frequency generation failed."
             self._set_state(
                 job_id,
                 status="failed",
                 completed_at=self._utcnow(),
                 failure_stage=failure_stage,
                 error=self._format_public_error(str(exc)),
-                message="Report generation failed.",
+                message=failure_message,
             )
             LOGGER.exception("Job execution failed", extra={"event": "job_failed", "job_id": job_id})
         finally:
@@ -854,6 +887,8 @@ class JobService:
         manifest["build"]["inputs"] = {
             "interaction_id_col": job["pipeline"]["interaction_id_col"],
             "interaction_count_col": job["pipeline"]["interaction_count_col"],
+            "interaction_residues": job["pipeline"].get("interaction_residues") or _DEFAULT_INTERACTION_RESIDUES,
+            "interaction_csv_precomputed": bool(job["pipeline"].get("interaction_csv_precomputed")),
             "top_per_scaffold": job["pipeline"]["top_per_scaffold"],
             "max_scaffolds_in_report": job["pipeline"]["max_scaffolds_in_report"],
             "n_workers": job["pipeline"]["n_workers"],
@@ -909,6 +944,24 @@ class JobService:
 
         if self._flask_app is not None:
             self._validate_release_routes(release_id)
+
+    def _validate_generated_interaction_csv(self, generated_csv_path, inputs):
+        with Path(generated_csv_path).open("r", encoding="utf-8", errors="ignore", newline="") as handle:
+            reader = csv.DictReader(handle)
+            headers = reader.fieldnames or []
+        if not headers:
+            raise RuntimeError("Interaction frequency generation failed. Generated CSV is missing a header row.")
+
+        required_headers = {
+            str(inputs.get("interaction_id_col") or "Title"),
+            _DEFAULT_INTERACTION_COUNT_COL,
+        }
+        missing = sorted(name for name in required_headers if name not in headers)
+        if missing:
+            raise RuntimeError(
+                "Interaction frequency generation failed. Generated CSV is missing required columns: "
+                + ", ".join(missing)
+            )
 
     def _validate_release_routes(self, release_id):
         """Use the Flask test client to verify release routes return 200."""

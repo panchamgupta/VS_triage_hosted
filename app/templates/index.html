@@ -138,8 +138,9 @@
             <label>Interaction ID Column
                 <input type="text" name="interaction_id_col" value="Title">
             </label>
-            <label>Interaction Count Column
-                <input type="text" name="interaction_count_col" value="interaction_count">
+            <label>Interaction Residues
+                <input type="text" name="interaction_residues" value="A467,A468,A470,A473,A486,A487,A488,A489,A490,A491,A492,A533,A536,A538,A543">
+                <span class="inline-help">Comma-separated residues used for interaction frequency generation.</span>
             </label>
             <label>Scoring: Top Per Scaffold
                 <input type="number" min="1" max="100" name="top_per_scaffold" value="10">
@@ -157,9 +158,10 @@
                 <input type="file" name="docking_sdf" accept=".sdf" required>
                 <span class="field-tag required">Required</span>
             </label>
-            <label>Interaction Fingerprint CSV (required)
+            <label>Interaction CSV (required)
                 <input type="file" name="interaction_csv" accept=".csv" required>
                 <span class="field-tag required">Required</span>
+                <span class="inline-help">Upload the raw interaction CSV. The portal will automatically generate interaction frequencies.</span>
             </label>
             <label>Protein PDB (optional)
                 <input type="file" name="protein_pdb" accept=".pdb">
@@ -172,6 +174,7 @@
         <div class="toggle-row">
             <label><input type="checkbox" name="auto_detect_score" checked> Auto-detect docking score column</label>
             <label><input type="checkbox" name="generate_all_mol_images"> Generate all molecule images</label>
+            <label><input type="checkbox" name="interaction_csv_precomputed"> Interaction CSV already contains interaction frequencies</label>
         </div>
 
         <div class="actions-row">
