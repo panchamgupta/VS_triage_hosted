@@ -79,16 +79,19 @@ HOSTED_PORTAL_UPLOAD_ROOT=/var/lib/hosted-docking-portal/uploads
 HOSTED_PORTAL_JOB_ROOT=/var/lib/hosted-docking-portal/jobs
 HOSTED_PORTAL_CACHE_DIR=/var/cache/hosted-docking-portal
 HOSTED_PORTAL_GUNICORN_BIND=0.0.0.0:8866
-HOSTED_PORTAL_GUNICORN_WORKERS=3
-HOSTED_PORTAL_GUNICORN_THREADS=2
+HOSTED_PORTAL_GUNICORN_WORKERS=1
+HOSTED_PORTAL_GUNICORN_THREADS=8
+HOSTED_PORTAL_LOG_DIR=/var/log/hosted-docking-portal
+HOSTED_PORTAL_STARTUP_STRICT=false
 EOF
 
 sudo mkdir -p \
 	/var/lib/hosted-docking-portal/uploads \
 	/var/lib/hosted-docking-portal/jobs \
 	/var/cache/hosted-docking-portal \
+	/var/log/hosted-docking-portal \
 	/data/docking-portal/releases
-sudo chown -R hostedportal:hostedportal /var/lib/hosted-docking-portal /var/cache/hosted-docking-portal /data/docking-portal/releases
+sudo chown -R hostedportal:hostedportal /var/lib/hosted-docking-portal /var/cache/hosted-docking-portal /var/log/hosted-docking-portal /data/docking-portal/releases
 
 sudo systemctl daemon-reload
 sudo systemctl enable --now hosted-portal-8866
@@ -106,7 +109,7 @@ sudo ufw allow 8866/tcp
 
 ```bash
 curl -sSf http://10.17.7.88:8866/healthz
-curl -sSf http://10.17.7.88:8866/api/health
+curl -sS http://10.17.7.88:8866/api/health | jq .status
 ```
 
 Then open in browser:

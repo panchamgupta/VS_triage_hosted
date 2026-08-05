@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+import logging
 import shutil
+
+
+LOGGER = logging.getLogger("hosted_portal.cleanup")
 
 
 class RetentionService:
@@ -67,6 +71,16 @@ class RetentionService:
         removed_uploads = []
         removed_workspaces = []
 
+        LOGGER.info(
+            "Retention cleanup requested",
+            extra={
+                "event": "cleanup_requested",
+                "dry_run": bool(dry_run),
+                "upload_candidates": len(plan.get("upload_candidates", [])),
+                "workspace_candidates": len(plan.get("workspace_candidates", [])),
+            },
+        )
+
         if dry_run:
             return {
                 "dry_run": True,
@@ -86,6 +100,16 @@ class RetentionService:
             if p.exists() and self._under_root(p, self.job_root):
                 shutil.rmtree(p, ignore_errors=True)
                 removed_workspaces.append(path)
+
+        LOGGER.info(
+            "Retention cleanup completed",
+            extra={
+                "event": "cleanup_completed",
+                "dry_run": False,
+                "removed_uploads": len(removed_uploads),
+                "removed_workspaces": len(removed_workspaces),
+            },
+        )
 
         return {
             "dry_run": False,

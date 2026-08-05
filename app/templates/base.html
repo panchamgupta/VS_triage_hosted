@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}Hosted Docking Portal{% endblock %}</title>
-    <link rel="stylesheet" href="{{ absolute_url_for('static', filename='css/portal.css') }}">
+    <link rel="stylesheet" href="{{ absolute_url_for('static', filename='css/portal.css') }}?v={{ static_asset_version }}">
     {% block extra_head %}{% endblock %}
 </head>
 <body data-active-release="{{ active_release|default('', true) }}" data-base-url="{{ portal_base_url }}">
@@ -23,6 +23,6 @@
     <main class="wrap">
         {% block content %}{% endblock %}
     </main>
-    <script src="{{ absolute_url_for('static', filename='js/portal.js') }}"></script>
+    <script src="{{ absolute_url_for('static', filename='js/portal.js') }}?v={{ static_asset_version }}"></script>
 </body>
 </html>

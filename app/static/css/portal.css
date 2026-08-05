@@ -84,6 +84,12 @@ a {
     margin-bottom: 16px;
 }
 
+.release-table-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
 .lede {
     color: var(--muted);
     max-width: 960px;
@@ -150,6 +156,44 @@ button.button-link:disabled {
     padding: 10px 12px;
     text-align: left;
     vertical-align: top;
+}
+
+.release-table .check-col {
+    width: 40px;
+    text-align: center;
+}
+
+.release-select-checkbox {
+    width: 16px;
+    height: 16px;
+}
+
+.confirm-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    z-index: 1000;
+}
+
+.confirm-modal-card {
+    width: min(560px, 100%);
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 18px;
+}
+
+.confirm-modal-card h3 {
+    margin-top: 0;
+}
+
+.confirm-modal-list {
+    margin: 8px 0;
+    padding-left: 22px;
 }
 
 .release-table th {

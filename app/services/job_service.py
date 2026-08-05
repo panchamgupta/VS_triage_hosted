@@ -1,5 +1,6 @@
 import csv
 import json
+import logging
 import re
 import subprocess
 import sys
@@ -46,6 +47,8 @@ _STATUS_ORDER = {
 
 _TERMINAL_STATUS = {"completed", "failed", "canceled", "orphaned"}
 
+LOGGER = logging.getLogger("hosted_portal.jobs")
+
 
 class JobService:
     def __init__(
@@ -79,7 +82,8 @@ class JobService:
         self._release_lock = threading.Lock()
         self._jobs = {}
         self._reserved_release_ids = set()
-        self._rehydrate_jobs_from_disk()
+        self._flask_app = None
+        self._rehydrated_job_count = self._rehydrate_jobs_from_disk()
 
     def create_job(self, form, files):
         normalized = self._normalize_form(form)
@@ -149,6 +153,17 @@ class JobService:
         with self._lock:
             self._jobs[job_id] = job
             self._persist_job(job)
+
+        LOGGER.info(
+            "Upload job accepted",
+            extra={
+                "event": "job_created",
+                "job_id": job_id,
+                "release_id": release_id,
+                "project": normalized["project_name"],
+                "target": normalized["target_name"],
+            },
+        )
 
         future = self._executor.submit(self._run_job, job_id)
         with self._lock:
@@ -258,13 +273,70 @@ class JobService:
             if process is not None and process.poll() is None:
                 process.terminate()
 
+            LOGGER.warning(
+                "Job cancellation requested",
+                extra={
+                    "event": "job_cancel_requested",
+                    "job_id": job_id,
+                    "status": job.get("status"),
+                },
+            )
+
             self._persist_job(job)
             return self._public_job_dict(job)
+
+    def get_runtime_stats(self, stale_after_seconds=900):
+        stale_after_seconds = max(60, int(stale_after_seconds))
+        now = datetime.now(timezone.utc)
+        with self._lock:
+            jobs = list(self._jobs.values())
+
+        status_counts = {}
+        queued = 0
+        running = 0
+        stale_running = 0
+        oldest_running_seconds = 0
+        for job in jobs:
+            status = str(job.get("status") or "unknown")
+            status_counts[status] = status_counts.get(status, 0) + 1
+            if status == "queued":
+                queued += 1
+            if status == "running":
+                running += 1
+                started = self._parse_time(job.get("started_at"))
+                if started is not None:
+                    age = int((now - started).total_seconds())
+                    if age > oldest_running_seconds:
+                        oldest_running_seconds = age
+                heartbeat = self._parse_time(job.get("heartbeat_at"))
+                if heartbeat is not None and int((now - heartbeat).total_seconds()) > stale_after_seconds:
+                    stale_running += 1
+
+        queue_depth = None
+        try:
+            queue_depth = int(self._executor._work_queue.qsize())
+        except Exception:
+            queue_depth = None
+
+        return {
+            "total_jobs": len(jobs),
+            "status_counts": status_counts,
+            "queued_jobs": queued,
+            "running_jobs": running,
+            "stale_running_jobs": stale_running,
+            "oldest_running_seconds": oldest_running_seconds,
+            "executor_shutdown": bool(getattr(self._executor, "_shutdown", False)),
+            "executor_max_workers": self.max_workers,
+            "executor_queue_depth": queue_depth,
+            "rehydrated_jobs": int(self._rehydrated_job_count or 0),
+        }
 
     def _normalize_form(self, form):
         report_name = str(form.get("report_name", "")).strip()
         project_name = str(form.get("project_name", "")).strip()
         target_name = str(form.get("target_name", "")).strip()
+        text_sd_props_raw = str(form.get("text_sd_props", "")).strip()
+        text_sd_props = [p.strip() for p in text_sd_props_raw.split(",") if p.strip()]
         uploader_username = str(form.get("uploader_username", "")).strip()
         uploader_email = str(form.get("uploader_email", "")).strip()
         uploader_group = str(form.get("uploader_group", "")).strip()
@@ -285,7 +357,7 @@ class JobService:
             1,
             self.max_n_workers,
         )
-        report_size = str(form.get("report_size", "wide")).strip().lower() or "wide"
+        report_size = str(form.get("report_size", "standard")).strip().lower() or "standard"
         report_max_width = self._resolve_report_width(report_size, form.get("report_max_width"))
         auto_detect_score = self._coerce_bool(form.get("auto_detect_score", "true"))
         generate_all_mol_images = self._coerce_bool(form.get("generate_all_mol_images", "false"))
@@ -294,13 +366,12 @@ class JobService:
             raise JobValidationError("Report Name is required.")
         if not project_name:
             raise JobValidationError("Project Name is required.")
-        if not target_name:
-            raise JobValidationError("Target Name is required.")
 
         return {
             "report_name": report_name,
             "project_name": project_name,
             "target_name": target_name,
+            "text_sd_props": text_sd_props,
             "uploader_username": uploader_username,
             "uploader_email": uploader_email,
             "uploader_group": uploader_group,
@@ -444,6 +515,40 @@ class JobService:
             if not re.search(r"\b(ATOM|HETATM|HEADER|TITLE)\b", pdb_head):
                 raise JobValidationError("Protein PDB appears invalid. Expected ATOM/HETATM/HEADER records.")
 
+    def _validate_sd_props(self, sdf_path, requested_props, job_id):
+        """Check which requested SD properties exist in the SDF. Returns only valid ones."""
+        available_props = set()
+        try:
+            supplier = Chem.ForwardSDMolSupplier(str(sdf_path), removeHs=False, sanitize=False)
+            for i, mol in enumerate(supplier):
+                if mol is not None:
+                    available_props.update(mol.GetPropsAsDict().keys())
+                if i >= 49:
+                    break
+        except Exception:
+            LOGGER.warning("Could not scan SDF properties", extra={"job_id": job_id})
+            return requested_props
+
+        valid = []
+        log_path = self._get_log_path(job_id)
+        for prop in requested_props:
+            if prop in available_props:
+                valid.append(prop)
+            else:
+                msg = f"Warning: SD property not found in SDF: {prop} — skipping."
+                LOGGER.warning(msg, extra={"job_id": job_id})
+                if log_path and log_path.exists():
+                    with log_path.open("a", encoding="utf-8") as fh:
+                        fh.write(msg + "\n")
+        return valid if valid else requested_props
+
+    def _get_log_path(self, job_id):
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if job and job.get("log_path"):
+                return Path(job["log_path"])
+        return None
+
     def _allocate_release_id(self):
         with self._release_lock:
             date_token = datetime.now(timezone.utc).strftime("%Y%m%d")
@@ -464,6 +569,7 @@ class JobService:
 
     def _run_job(self, job_id):
         try:
+            LOGGER.info("Job execution started", extra={"event": "job_start", "job_id": job_id})
             self._set_state(
                 job_id,
                 status="running",
@@ -516,6 +622,13 @@ class JobService:
             report_filename = prefixed_output_name(file_prefix, "report.html")
             report_html = report_out_dir / report_filename
 
+            # Validate requested text SD properties against actual SDF tags.
+            if inputs.get("text_sd_props"):
+                validated_props = self._validate_sd_props(
+                    input_sdf_path, inputs["text_sd_props"], job_id
+                )
+                inputs["text_sd_props"] = validated_props
+
             process_command = [
                 sys.executable,
                 str(self.repo_root / "process_docking_IF_show_docking.py"),
@@ -540,6 +653,9 @@ class JobService:
             ]
             if uploads.get("protein_pdb"):
                 process_command.extend(["--protein-pdb", str(uploads["protein_pdb"])])
+            if inputs.get("text_sd_props"):
+                process_command.append("--text-sd-props")
+                process_command.extend(inputs["text_sd_props"])
             if inputs["auto_detect_score"]:
                 process_command.append("--auto-detect-score")
             if inputs["generate_all_mol_images"]:
@@ -595,6 +711,7 @@ class JobService:
             self._run_command(job_id, validate_command)
 
             self._write_release_metadata(job)
+            self._validate_release_discoverable(job)
             self._set_state(
                 job_id,
                 status="completed",
@@ -604,6 +721,7 @@ class JobService:
                 message="Report generated successfully.",
                 failure_stage=None,
             )
+            LOGGER.info("Job execution completed", extra={"event": "job_completed", "job_id": job_id})
         except JobCancelledError:
             self._set_state(
                 job_id,
@@ -612,6 +730,7 @@ class JobService:
                 completed_at=self._utcnow(),
                 message="Job canceled.",
             )
+            LOGGER.warning("Job execution canceled", extra={"event": "job_canceled", "job_id": job_id})
         except Exception as exc:
             failure_stage = "Unknown"
             with self._lock:
@@ -626,6 +745,7 @@ class JobService:
                 error=self._format_public_error(str(exc)),
                 message="Report generation failed.",
             )
+            LOGGER.exception("Job execution failed", extra={"event": "job_failed", "job_id": job_id})
         finally:
             with self._lock:
                 job = self._jobs.get(job_id)
@@ -709,10 +829,10 @@ class JobService:
 
         manifest["display_name"] = job["metadata"]["report_name"]
         manifest["program"] = job["metadata"]["project_name"]
-        manifest["target"] = job["metadata"]["target_name"]
+        manifest["target"] = job["metadata"]["target_name"] or ""
         manifest["report_name"] = job["metadata"]["report_name"]
         manifest["project_name"] = job["metadata"]["project_name"]
-        manifest["target_name"] = job["metadata"]["target_name"]
+        manifest["target_name"] = job["metadata"]["target_name"] or ""
         manifest["uploader"] = {
             "username": job["metadata"].get("uploader_username") or "",
             "email": job["metadata"].get("uploader_email") or "",
@@ -739,10 +859,71 @@ class JobService:
             "n_workers": job["pipeline"]["n_workers"],
             "auto_detect_score": job["pipeline"]["auto_detect_score"],
             "report_max_width": job["pipeline"]["report_max_width"],
+            "text_sd_props": job["inputs"].get("text_sd_props") or [],
         }
 
         with manifest_path.open("w", encoding="utf-8") as handle:
             json.dump(manifest, handle, indent=2)
+
+    def _validate_release_discoverable(self, job):
+        """Verify the release is loadable by the portal before marking complete."""
+        from app.services.manifest_service import validate_manifest, ManifestValidationError
+
+        release_id = job["release_id"]
+        release_dir = self.release_root / release_id
+        manifest_path = release_dir / "manifest.json"
+
+        if not release_dir.exists():
+            raise RuntimeError(
+                f"Release publication failed: directory '{release_id}' does not exist in release root."
+            )
+        if not manifest_path.exists():
+            raise RuntimeError(
+                f"Release publication failed: manifest.json missing for '{release_id}'."
+            )
+
+        with manifest_path.open("r", encoding="utf-8") as fh:
+            manifest = json.load(fh)
+
+        try:
+            validate_manifest(manifest, release_dir=release_dir)
+        except ManifestValidationError as exc:
+            raise RuntimeError(
+                f"Release registration failed: manifest validation error for '{release_id}': {exc}"
+            ) from exc
+
+        static_report = manifest.get("files", {}).get("static_report", "")
+        if static_report:
+            report_path = release_dir / static_report
+            if not report_path.exists():
+                raise RuntimeError(
+                    f"Release publication failed: report HTML not found at '{static_report}'."
+                )
+
+        for key in ("scaffolds", "molecules", "pose_index"):
+            data_path = manifest.get("files", {}).get(key, "")
+            if data_path and not (release_dir / data_path).exists():
+                raise RuntimeError(
+                    f"Release publication failed: data file '{key}' not found at '{data_path}'."
+                )
+
+        if self._flask_app is not None:
+            self._validate_release_routes(release_id)
+
+    def _validate_release_routes(self, release_id):
+        """Use the Flask test client to verify release routes return 200."""
+        with self._flask_app.test_client() as client:
+            routes = [
+                f"/dataset/{release_id}",
+                f"/release/{release_id}",
+                f"/release/{release_id}/report",
+            ]
+            for route in routes:
+                resp = client.get(route)
+                if resp.status_code != 200:
+                    raise RuntimeError(
+                        f"Report route validation failed: {route} returned HTTP {resp.status_code}."
+                    )
 
     def _set_state(self, job_id, **changes):
         with self._lock:
@@ -782,6 +963,8 @@ class JobService:
             "error": job.get("error"),
             "inputs": job.get("inputs"),
             "uploads": job.get("uploads"),
+            "upload_dir": job.get("upload_dir") or "",
+            "workspace_dir": job.get("workspace_dir") or "",
             "metadata": job.get("metadata") or {},
             "pipeline": job.get("pipeline") or {},
             "runner_id": job.get("runner_id"),
@@ -869,6 +1052,20 @@ class JobService:
             with self._lock:
                 for job in self._jobs.values():
                     self._persist_job(job)
+        if loaded:
+            LOGGER.info("Rehydrated jobs from disk", extra={"event": "jobs_rehydrated", "count": loaded})
+        return loaded
+
+    def _parse_time(self, value):
+        if not value:
+            return None
+        raw = str(value).strip()
+        if raw.endswith("Z"):
+            raw = raw[:-1] + "+00:00"
+        try:
+            return datetime.fromisoformat(raw)
+        except ValueError:
+            return None
 
     def _get_internal_job(self, job_id):
         with self._lock:

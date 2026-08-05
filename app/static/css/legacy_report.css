@@ -128,13 +128,81 @@
     background: #ffffff;
 }
 
+.legacy-report-host-focus .hero-report-focus {
+    padding-bottom: 14px;
+}
+
+.report-focus-meta {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+}
+
+.hosted-toolbar-compact {
+    margin: 0;
+}
+
+.report-review-shell {
+    padding-top: 18px;
+}
+
+.report-review-head {
+    align-items: flex-start;
+}
+
+.report-review-shell-focus {
+    padding: 18px;
+}
+
+.reviewer-identity-shell {
+    min-width: min(100%, 360px);
+    padding: 12px 14px;
+    border: 1px solid #d8e2ee;
+    border-radius: 12px;
+    background: linear-gradient(180deg, #fbfdff 0%, #f4f9ff 100%);
+}
+
+.reviewer-identity-form {
+    display: flex;
+    gap: 8px;
+    margin-top: 6px;
+    flex-wrap: wrap;
+}
+
+.reviewer-identity-form input {
+    flex: 1 1 180px;
+    min-height: 36px;
+    border: 1px solid #c4d0df;
+    border-radius: 8px;
+    padding: 7px 10px;
+    font-size: 13px;
+}
+
+.reviewer-identity-active {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.hosted-report-frame-focus {
+    min-height: calc(100vh - 220px);
+}
+
 @media (max-width: 760px) {
     .hosted-toolbar {
         align-items: stretch;
     }
 
     .hosted-toolbar select,
-    .hosted-btn {
+    .hosted-btn,
+    .reviewer-identity-form input {
         width: 100%;
+    }
+
+    .reviewer-identity-form {
+        flex-direction: column;
     }
 }

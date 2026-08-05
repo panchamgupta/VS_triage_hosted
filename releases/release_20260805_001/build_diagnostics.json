@@ -1,0 +1,20 @@
+{
+  "release_id": "release_20260805_001",
+  "report_html": "/var/lib/hosted-docking-portal/jobs/d1af8c59-7ccc-47de-89ba-5231bfe25a93/workspace/report_build/release_20260805_001_report.html",
+  "report_max_width": 1800,
+  "counts": {
+    "scaffolds": 154,
+    "molecules": 1590,
+    "poses": 823
+  },
+  "viewer_payload_checks": {
+    "has_pose_entries": true,
+    "has_protein_payload": true,
+    "protein_source_count": 1,
+    "uses_local_3dmol": true,
+    "uses_local_plotly": true
+  },
+  "known_limitations": [
+    "Current local 3Dmol/Plotly/RDKit files are compatibility shims; full rendering requires real vendored upstream libraries."
+  ]
+}

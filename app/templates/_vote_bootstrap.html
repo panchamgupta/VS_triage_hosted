@@ -1,0 +1,9 @@
+<div id="hosted-report-vote-bootstrap"
+     data-vote-surface="{{ vote_surface }}"
+     data-release-id="{{ release_id }}"
+     data-vote-poll-seconds="{{ vote_poll_seconds }}"
+     data-vote-release-endpoint="{{ absolute_url_for('api_votes.get_release_votes', release_id=release_id) }}"
+     data-vote-scaffold-endpoint="{{ absolute_url_for('api_votes.cast_scaffold_vote') }}"
+     data-vote-molecule-endpoint="{{ absolute_url_for('api_votes.cast_molecule_vote') }}"
+     {% if frame_id %}data-frame-id="{{ frame_id }}"{% endif %}
+     hidden></div>

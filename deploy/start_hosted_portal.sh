@@ -15,17 +15,27 @@ export HOSTED_PORTAL_RELEASE_ROOT="${HOSTED_PORTAL_RELEASE_ROOT:-/data/docking-p
 export HOSTED_PORTAL_UPLOAD_ROOT="${HOSTED_PORTAL_UPLOAD_ROOT:-/var/lib/hosted-docking-portal/uploads}"
 export HOSTED_PORTAL_JOB_ROOT="${HOSTED_PORTAL_JOB_ROOT:-/var/lib/hosted-docking-portal/jobs}"
 export HOSTED_PORTAL_CACHE_DIR="${HOSTED_PORTAL_CACHE_DIR:-/var/cache/hosted-docking-portal}"
+export HOSTED_PORTAL_LOG_DIR="${HOSTED_PORTAL_LOG_DIR:-/var/log/hosted-docking-portal}"
 export HOSTED_PORTAL_LOG_LEVEL="${HOSTED_PORTAL_LOG_LEVEL:-INFO}"
+export HOSTED_PORTAL_STARTUP_STRICT="${HOSTED_PORTAL_STARTUP_STRICT:-false}"
+export HOSTED_PORTAL_JOB_HEARTBEAT_STALE_SECONDS="${HOSTED_PORTAL_JOB_HEARTBEAT_STALE_SECONDS:-900}"
 export HOSTED_PORTAL_GUNICORN_BIND="${HOSTED_PORTAL_GUNICORN_BIND:-0.0.0.0:8866}"
 
 mkdir -p \
   "${HOSTED_PORTAL_RELEASE_ROOT}" \
   "${HOSTED_PORTAL_UPLOAD_ROOT}" \
   "${HOSTED_PORTAL_JOB_ROOT}" \
-  "${HOSTED_PORTAL_CACHE_DIR}"
+  "${HOSTED_PORTAL_CACHE_DIR}" \
+  "${HOSTED_PORTAL_LOG_DIR}"
+
+CONDA_ENV_BIN="${HOSTED_PORTAL_CONDA_ENV_BIN:-/home/pgupta11/anaconda3/envs/rdkit-env/bin}"
 
 if [[ -x "${APP_DIR}/.venv/bin/gunicorn" ]]; then
   exec "${APP_DIR}/.venv/bin/gunicorn" -c deploy/gunicorn.conf.py wsgi:app
+fi
+
+if [[ -x "${CONDA_ENV_BIN}/gunicorn" ]]; then
+  exec "${CONDA_ENV_BIN}/gunicorn" -c deploy/gunicorn.conf.py wsgi:app
 fi
 
 if command -v gunicorn >/dev/null 2>&1; then
@@ -33,4 +43,9 @@ if command -v gunicorn >/dev/null 2>&1; then
 fi
 
 echo "gunicorn not found; falling back to Flask development server" >&2
-exec python -m flask --app wsgi:app run --host "${HOSTED_PORTAL_HOST}" --port "${HOSTED_PORTAL_PORT}"
+export FLASK_APP="wsgi:app"
+
+if [[ -x "${CONDA_ENV_BIN}/python" ]]; then
+  exec "${CONDA_ENV_BIN}/python" -m flask run --host "${HOSTED_PORTAL_HOST}" --port "${HOSTED_PORTAL_PORT}"
+fi
+exec python -m flask run --host "${HOSTED_PORTAL_HOST}" --port "${HOSTED_PORTAL_PORT}"

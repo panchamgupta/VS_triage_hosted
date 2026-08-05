@@ -1,6 +1,7 @@
 [Unit]
 Description=Hosted Docking Portal
 After=network.target
+StartLimitIntervalSec=0
 
 [Service]
 User=hostedportal
@@ -15,19 +16,25 @@ Environment=HOSTED_PORTAL_RELEASE_ROOT=/data/docking-portal/releases
 Environment=HOSTED_PORTAL_UPLOAD_ROOT=/var/lib/hosted-docking-portal/uploads
 Environment=HOSTED_PORTAL_JOB_ROOT=/var/lib/hosted-docking-portal/jobs
 Environment=HOSTED_PORTAL_CACHE_DIR=/var/cache/hosted-docking-portal
+Environment=HOSTED_PORTAL_LOG_DIR=/var/log/hosted-docking-portal
 Environment=HOSTED_PORTAL_LOG_LEVEL=INFO
 Environment=HOSTED_PORTAL_GUNICORN_BIND=127.0.0.1:8000
-Environment=HOSTED_PORTAL_GUNICORN_WORKERS=3
-Environment=HOSTED_PORTAL_GUNICORN_THREADS=2
+Environment=HOSTED_PORTAL_GUNICORN_WORKERS=1
+Environment=HOSTED_PORTAL_GUNICORN_THREADS=8
 ExecStart=/opt/hosted-docking-portal/deploy/start_hosted_portal.sh
-Restart=on-failure
+Restart=always
 RestartSec=5
 TimeoutStopSec=30
+KillMode=mixed
+LimitNOFILE=65535
+TasksMax=infinity
+StandardOutput=journal
+StandardError=journal
 PrivateTmp=true
 NoNewPrivileges=true
 ProtectSystem=full
 ProtectHome=true
-ReadWritePaths=/var/cache/hosted-docking-portal /var/lib/hosted-docking-portal /data/docking-portal/releases
+ReadWritePaths=/var/cache/hosted-docking-portal /var/lib/hosted-docking-portal /data/docking-portal/releases /var/log/hosted-docking-portal
 UMask=0027
 
 [Install]

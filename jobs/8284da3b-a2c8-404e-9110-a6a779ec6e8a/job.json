@@ -36,6 +36,8 @@
     "docking_sdf": "/home/pgupta11/Projects/STAT6_PPI/PPI_program_writing/R_group_mapping/advanced_problems/hosting_docking_portal/uploaded_files/20260803/1e91006d-8113-4cfb-813a-44a5d0aaf927/Wuxi_Enamine_Leo_Bicyclic_docking_pose_3D_filtered_w_ADME.sdf",
     "interaction_csv": "/home/pgupta11/Projects/STAT6_PPI/PPI_program_writing/R_group_mapping/advanced_problems/hosting_docking_portal/uploaded_files/20260803/1e91006d-8113-4cfb-813a-44a5d0aaf927/direct_linker_all_IF.csv"
   },
+  "upload_dir": "",
+  "workspace_dir": "/home/pgupta11/Projects/STAT6_PPI/PPI_program_writing/R_group_mapping/advanced_problems/hosting_docking_portal/jobs/8284da3b-a2c8-404e-9110-a6a779ec6e8a/workspace",
   "metadata": {
     "report_name": "live_upload_validator_test",
     "project_name": "STAT6_PPI",

@@ -37,6 +37,8 @@
     "interaction_csv": "/home/pgupta11/Projects/STAT6_PPI/PPI_program_writing/R_group_mapping/advanced_problems/hosting_docking_portal/uploaded_files/20260803/ceb229ef-f798-4fb6-a341-acb5cc9d93e6/Wuxi_Enamine_Leo_Bicyclic_IF.csv",
     "protein_pdb": "/home/pgupta11/Projects/STAT6_PPI/PPI_program_writing/R_group_mapping/advanced_problems/hosting_docking_portal/uploaded_files/20260803/ceb229ef-f798-4fb6-a341-acb5cc9d93e6/STAT6-1668418_wo_lig.pdb"
   },
+  "upload_dir": "",
+  "workspace_dir": "/home/pgupta11/Projects/STAT6_PPI/PPI_program_writing/R_group_mapping/advanced_problems/hosting_docking_portal/jobs/fbf6a45f-8354-4789-9308-a1a649ee1253/workspace",
   "metadata": {
     "report_name": "Leo Bicyclic Campaign",
     "project_name": "STAT6 PPI",

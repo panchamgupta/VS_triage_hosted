@@ -10,9 +10,13 @@ REQUIRED_MANIFEST_FIELDS = (
     "display_name",
     "created_at",
     "program",
-    "target",
     "description",
     "files",
+)
+
+# Fields that must be present but may be empty strings.
+OPTIONAL_STRING_FIELDS = (
+    "target",
 )
 
 REQUIRED_FILE_KEYS = (
@@ -27,9 +31,11 @@ def validate_manifest(manifest, release_dir=None):
         raise ManifestValidationError("Manifest content must be a JSON object.")
 
     missing_fields = [field for field in REQUIRED_MANIFEST_FIELDS if field not in manifest]
-    if missing_fields:
+    missing_optional = [field for field in OPTIONAL_STRING_FIELDS if field not in manifest]
+    if missing_fields or missing_optional:
+        all_missing = sorted(set(missing_fields) | set(missing_optional))
         raise ManifestValidationError(
-            "Manifest is missing required fields: " + ", ".join(sorted(missing_fields))
+            "Manifest is missing required fields: " + ", ".join(all_missing)
         )
 
     if not isinstance(manifest.get("files"), dict):

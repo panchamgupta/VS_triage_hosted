@@ -1,13 +1,12 @@
-from __future__ import annotations
-
 from datetime import datetime, timezone
 
 
 class OperationsService:
-    def __init__(self, release_service, job_service, project_service):
+    def __init__(self, release_service, job_service, project_service, vote_service=None):
         self.release_service = release_service
         self.job_service = job_service
         self.project_service = project_service
+        self.vote_service = vote_service
 
     def get_metrics(self):
         releases = self.release_service.list_releases(include_invalid=True)
@@ -24,6 +23,19 @@ class OperationsService:
             if created and created > latest_job:
                 latest_job = created
 
+        vote_metrics = {
+            "total_votes": 0,
+            "total_scaffold_votes": 0,
+            "total_molecule_votes": 0,
+            "active_users": 0,
+            "most_liked_scaffolds": [],
+            "most_rejected_scaffolds": [],
+            "most_prioritized_scaffolds": [],
+            "most_liked_molecules": [],
+        }
+        if self.vote_service is not None:
+            vote_metrics.update(self.vote_service.get_operations_metrics(limit=10))
+
         return {
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "release_count": len(releases),
@@ -33,4 +45,5 @@ class OperationsService:
             "job_status_counts": status_counts,
             "project_count": len(projects),
             "latest_job_created_at": latest_job,
+            "votes": vote_metrics,
         }

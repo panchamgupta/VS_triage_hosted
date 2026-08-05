@@ -1,0 +1,71 @@
+{
+  "release_id": "release_20260805_001",
+  "display_name": "Leo Bicyclic Campaign 4",
+  "created_at": "2026-08-05",
+  "program": "STAT6 PPI",
+  "target": "",
+  "description": "Automated pattern discovery and medicinal chemistry prioritization from docking SDF plus interaction-count CSV.",
+  "files": {
+    "scaffolds": "data/scaffolds.json",
+    "molecules": "data/molecules.json",
+    "pose_index": "data/pose_index.json",
+    "static_report": "static_payload/report.html"
+  },
+  "counts": {
+    "scaffolds": 154,
+    "molecules": 1590,
+    "poses": 823
+  },
+  "features": {
+    "structure_search": true,
+    "motif_exclusion": true,
+    "pose_viewer": true,
+    "exports": true
+  },
+  "source": {
+    "report_html": "release_20260805_001_report.html",
+    "build_script": "scripts/create_example_release_from_report.py",
+    "generated_by": "hosted_portal_upload",
+    "job_id": "d1af8c59-7ccc-47de-89ba-5231bfe25a93"
+  },
+  "diagnostics": {
+    "build_diagnostics": "build_diagnostics.json"
+  },
+  "frontend_migration": {
+    "overview": "preserved_via_static_payload",
+    "central_ideas": "preserved_via_static_payload",
+    "deep_dive": "preserved_via_static_payload",
+    "hosted_shell": "template_extracted"
+  },
+  "report_name": "Leo Bicyclic Campaign 4",
+  "project_name": "STAT6 PPI",
+  "target_name": "",
+  "uploader": {
+    "username": "",
+    "email": "",
+    "group": ""
+  },
+  "source_files": {
+    "docking_sdf": "Wuxi_Enamine_Leo_Bicyclic_docking_pose_3D_filtered_w_ADME.sdf",
+    "interaction_csv": "Wuxi_Enamine_Leo_Bicyclic_IF.csv",
+    "property_csv": "",
+    "protein_pdb": "STAT6-1650610_wo_lig.pdb"
+  },
+  "pipeline_version": "process_docking_IF_show_docking.py",
+  "report_version": "hosted_portal_v1",
+  "build": {
+    "inputs": {
+      "interaction_id_col": "Title",
+      "interaction_count_col": "interaction_count",
+      "top_per_scaffold": 10,
+      "max_scaffolds_in_report": 500,
+      "n_workers": 8,
+      "auto_detect_score": true,
+      "report_max_width": 1800,
+      "text_sd_props": [
+        "Vendor",
+        "ring_system"
+      ]
+    }
+  }
+}

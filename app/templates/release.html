@@ -3,7 +3,7 @@
 {% block title %}{{ manifest.display_name }}{% endblock %}
 
 {% block extra_head %}
-<link rel="stylesheet" href="{{ absolute_url_for('static', filename='css/legacy_report.css') }}">
+<link rel="stylesheet" href="{{ absolute_url_for('static', filename='css/legacy_report.css') }}?v={{ static_asset_version }}">
 {% endblock %}
 
 {% block content %}
@@ -35,7 +35,7 @@
             </select>
             <a class="hosted-btn" href="{{ absolute_url_for('pages.release_view', release_id=release_id) }}" data-release-open>Open Selected Release</a>
             {% if static_report_url %}
-            <a class="hosted-btn hosted-btn-secondary" href="{{ portal_base_url ~ static_report_url if portal_base_url else static_report_url }}" target="_blank" rel="noopener noreferrer">Open Full Report in New Tab</a>
+            <a class="hosted-btn hosted-btn-secondary" href="{{ absolute_url_for('pages.raw_report_file', release_id=release_id) }}" target="_blank" rel="noopener noreferrer">Open Full Report in New Tab</a>
             {% endif %}
             <a class="hosted-btn hosted-btn-secondary" href="{{ absolute_url_for('api_releases.get_release_manifest', release_id=release_id) }}">Manifest JSON</a>
             <a class="hosted-btn hosted-btn-secondary" href="{{ absolute_url_for('api_scaffolds.list_scaffolds', release_id=release_id) }}">Scaffolds JSON</a>
@@ -54,14 +54,6 @@
         -->
     </section>
 
-    <section class="panel">
-        <h2>Authoritative Report Payload</h2>
-        <p class="smalltxt">The iframe below serves the current generated report with local asset references only. This preserves the existing medicinal chemistry workflow while the hosted UI is extracted incrementally.</p>
-        {% if static_report_url %}
-        <iframe id="hosted-report-shell" class="hosted-report-frame" src="{{ static_report_url }}" title="{{ manifest.display_name }} report" data-release-id="{{ release_id }}"></iframe>
-        {% else %}
-        <div class="lazy-placeholder">No static report payload is defined for this release.</div>
-        {% endif %}
-    </section>
+    {% include "_report_shell.html" %}
 </div>
 {% endblock %}

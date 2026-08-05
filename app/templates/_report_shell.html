@@ -1,0 +1,23 @@
+<section class="panel report-review-shell {% if report_mode == 'report' %}report-review-shell-focus{% endif %}">
+    <div class="panel-head report-review-head">
+        <div>
+            <h2>{% if report_mode == 'report' %}Collaborative Report Review{% else %}Authoritative Report Payload{% endif %}</h2>
+            <p class="smalltxt">
+                {% if report_mode == 'report' %}
+                This report view keeps the medicinal chemistry workflow intact while adding scaffold voting as a collaborative review layer.
+                {% else %}
+                The iframe below serves the current generated report with local asset references only. This preserves the existing medicinal chemistry workflow while the hosted UI is extracted incrementally.
+                {% endif %}
+            </p>
+        </div>
+        {% include "_reviewer_identity.html" %}
+    </div>
+    {% if static_report_url %}
+    {% with vote_surface='iframe', frame_id='hosted-report-shell', vote_poll_seconds=(config.HOSTED_PORTAL_VOTE_POLL_SECONDS if config and config.HOSTED_PORTAL_VOTE_POLL_SECONDS else 5) %}
+    {% include "_vote_bootstrap.html" %}
+    {% endwith %}
+    <iframe id="hosted-report-shell" class="hosted-report-frame {% if report_mode == 'report' %}hosted-report-frame-focus{% endif %}" src="{{ static_report_url }}" title="{{ manifest.display_name }} report"></iframe>
+    {% else %}
+    <div class="lazy-placeholder">No static report payload is defined for this release.</div>
+    {% endif %}
+</section>

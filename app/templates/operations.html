@@ -30,6 +30,346 @@
 </section>
 
 <section class="panel-shell">
+    <h2>Voting Activity</h2>
+    <table class="release-table">
+        <tbody>
+            <tr><th>Total Votes</th><td>{{ metrics.votes.total_votes }}</td></tr>
+            <tr><th>Scaffold Votes</th><td>{{ metrics.votes.total_scaffold_votes }}</td></tr>
+            <tr><th>Molecule Votes</th><td>{{ metrics.votes.total_molecule_votes }}</td></tr>
+            <tr><th>Active Users</th><td>{{ metrics.votes.active_users }}</td></tr>
+        </tbody>
+    </table>
+</section>
+
+<section class="panel-shell" id="voting-exports-panel">
+    <h2>Voting Analytics &amp; Exports</h2>
+    <p class="lede">Download CSV analytics and reaction/consensus SDF bundles directly from votes.</p>
+    <div class="filter-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.6rem;">
+        <label>
+            Release
+            <select id="ops-release-id" class="input-field" data-release-picker>
+                {% for release in releases %}
+                <option value="{{ release.release_id }}" {% if release.default or (not releases[0].default and loop.first) %}selected{% endif %}>{{ release.display_name }} ({{ release.release_id }})</option>
+                {% endfor %}
+                {% if not releases %}
+                <option value="" selected>No releases currently available.</option>
+                {% endif %}
+            </select>
+            <div id="ops-release-load-state" class="release-meta" style="margin-top:0.35rem;"></div>
+            <button id="ops-release-retry" type="button" class="btn-secondary" style="display:none; margin-top:0.35rem;">Retry</button>
+        </label>
+        <label>
+            Username (for user CSV)
+            <input id="ops-username" class="input-field" type="text" placeholder="alice" />
+        </label>
+        <label>
+            Consensus Threshold (N)
+            <input id="ops-consensus-n" class="input-field" type="number" min="1" max="100" value="3" />
+        </label>
+    </div>
+    <div class="toolbar-actions" style="margin-top:0.8rem; display:flex; flex-wrap:wrap; gap:0.5rem;">
+        <button class="btn-secondary" type="button" data-action="all-votes-csv">Download All Votes CSV</button>
+        <button class="btn-secondary" type="button" data-action="summary-csv">Download Vote Summary CSV</button>
+        <button class="btn-secondary" type="button" data-action="user-csv">Download User Votes CSV</button>
+        <button class="btn-secondary" type="button" data-action="consensus-csv">Download Consensus CSV</button>
+    </div>
+    <div class="toolbar-actions" style="margin-top:0.6rem; display:flex; flex-wrap:wrap; gap:0.5rem;">
+        <button class="btn-primary" type="button" data-action="like-scaffolds-top10">Liked Scaffolds (Top 10) SDF</button>
+        <button class="btn-primary" type="button" data-action="like-scaffolds-all">Liked Scaffolds (All Members) SDF</button>
+        <button class="btn-primary" type="button" data-action="like-molecules">Liked Molecules SDF</button>
+    </div>
+    <div class="toolbar-actions" style="margin-top:0.6rem; display:flex; flex-wrap:wrap; gap:0.5rem;">
+        <button class="btn-primary" type="button" data-action="priority-scaffolds-top10">High Priority Scaffolds (Top 10) SDF</button>
+        <button class="btn-primary" type="button" data-action="priority-scaffolds-all">High Priority Scaffolds (All Members) SDF</button>
+        <button class="btn-primary" type="button" data-action="priority-molecules">High Priority Molecules SDF</button>
+    </div>
+    <div class="toolbar-actions" style="margin-top:0.6rem; display:flex; flex-wrap:wrap; gap:0.5rem;">
+        <button class="btn-secondary" type="button" data-action="consensus-scaffolds-top10">Consensus Scaffolds (Top 10) SDF</button>
+        <button class="btn-secondary" type="button" data-action="consensus-scaffolds-all">Consensus Scaffolds (All Members) SDF</button>
+        <button class="btn-secondary" type="button" data-action="consensus-molecules">Consensus Molecules SDF</button>
+    </div>
+    <div id="ops-export-status" class="release-meta" style="display:block; margin-top:0.6rem;"></div>
+</section>
+
+<section class="panel-shell">
+    <h2>Most Liked Scaffolds</h2>
+    {% if metrics.votes.most_liked_scaffolds %}
+    <table class="release-table">
+        <thead><tr><th>Release</th><th>Scaffold</th><th>Likes</th></tr></thead>
+        <tbody>
+            {% for row in metrics.votes.most_liked_scaffolds %}
+            <tr><td>{{ row.release_id }}</td><td>{{ row.object_id }}</td><td>{{ row.count }}</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">No scaffold likes recorded yet.</div>
+    {% endif %}
+</section>
+
+<script>
+(function(){
+    function q(id){ return document.getElementById(id); }
+    function selectedRelease(){ var el=q('ops-release-id'); return el ? String(el.value||'').trim() : ''; }
+    function username(){ var el=q('ops-username'); return el ? String(el.value||'').trim() : ''; }
+    function consensusN(){
+        var el=q('ops-consensus-n');
+        var n=parseInt(el && el.value ? el.value : '3',10);
+        if(!(n>=1)){n=3;}
+        if(n>100){n=100;}
+        return n;
+    }
+    function setStatus(msg, isError){
+        var box=q('ops-export-status');
+        if(!box){return;}
+        box.textContent=msg||'';
+        box.style.color=isError?'#b42318':'#475467';
+    }
+    function triggerDownload(url){
+        var a=document.createElement('a');
+        a.href=url;
+        a.rel='noopener';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+    }
+    function downloadBlob(filename, blob){
+        var href = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = href;
+        a.rel = 'noopener';
+        a.download = filename || 'export.sdf';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(href);
+    }
+    function filenameFromHeaders(headers, fallbackName){
+        var disposition = headers.get('content-disposition') || '';
+        var m = disposition.match(/filename=\"?([^\";]+)\"?/i);
+        if(m && m[1]){ return m[1]; }
+        return fallbackName;
+    }
+    function fetchJson(url){
+        return fetch(url, { credentials: 'same-origin' })
+            .then(function(res){
+                if(!res.ok){ throw new Error('Request failed'); }
+                return res.json();
+            });
+    }
+    function uniqueSorted(list){
+        var seen = Object.create(null);
+        var out = [];
+        (list || []).forEach(function(item){
+            var v = String(item || '').trim();
+            if(!v || seen[v]){ return; }
+            seen[v] = true;
+            out.push(v);
+        });
+        out.sort();
+        return out;
+    }
+    function resolveReactionIdsForAllUsers(releaseId, reactionType, molecules){
+        return fetchJson('/api/votes/release/' + encodeURIComponent(releaseId))
+            .then(function(payload){
+                var key = molecules ? 'molecule_votes' : 'scaffold_votes';
+                var votes = (payload && payload[key]) || {};
+                var ids = [];
+                Object.keys(votes).forEach(function(objectId){
+                    var row = votes[objectId] || {};
+                    var counts = row.counts || {};
+                    var count = parseInt(counts[reactionType] || 0, 10);
+                    if(count > 0){ ids.push(objectId); }
+                });
+                return uniqueSorted(ids);
+            });
+    }
+    function resolveReactionIdsForUser(releaseId, usernameValue, reactionType, molecules){
+        var url = '/api/votes/users/' + encodeURIComponent(usernameValue) + '?release_id=' + encodeURIComponent(releaseId) + '&limit=50000';
+        return fetchJson(url)
+            .then(function(payload){
+                var key = molecules ? 'molecule_votes' : 'scaffold_votes';
+                var idField = molecules ? 'molecule_id' : 'scaffold_id';
+                var rows = (payload && payload[key]) || [];
+                var ids = rows
+                    .filter(function(row){ return String((row && row.vote_type) || '').toUpperCase() === reactionType; })
+                    .map(function(row){ return row && row[idField]; });
+                return uniqueSorted(ids);
+            });
+    }
+    function resolveReactionIds(releaseId, usernameValue, reactionType, molecules){
+        if(usernameValue){
+            return resolveReactionIdsForUser(releaseId, usernameValue, reactionType, molecules);
+        }
+        return resolveReactionIdsForAllUsers(releaseId, reactionType, molecules);
+    }
+    function noMatchMessage(reactionType, molecules){
+        if(molecules){
+            return reactionType === 'LIKE' ? 'No liked molecules found.' : 'No High Priority molecules found.';
+        }
+        return reactionType === 'LIKE' ? 'No liked scaffolds found.' : 'No High Priority scaffolds found.';
+    }
+    function downloadReactionExport(releaseId, usernameValue, reactionType, mode, molecules){
+        return resolveReactionIds(releaseId, usernameValue, reactionType, molecules)
+            .then(function(ids){
+                if(!ids.length){
+                    setStatus(noMatchMessage(reactionType, molecules), true);
+                    return;
+                }
+
+                var base = molecules
+                    ? '/api/exports/reaction/molecules?release_id=' + encodeURIComponent(releaseId)
+                    : '/api/exports/reaction/scaffolds?release_id=' + encodeURIComponent(releaseId) + '&mode=' + encodeURIComponent(mode);
+                var url = base
+                    + '&reaction_type=' + encodeURIComponent(reactionType)
+                    + '&object_ids=' + encodeURIComponent(ids.join(','));
+
+                return fetch(url, { credentials: 'same-origin' })
+                    .then(function(res){
+                        var ctype = (res.headers.get('content-type') || '').toLowerCase();
+                        if(!res.ok || ctype.indexOf('application/json') !== -1){
+                            return res.text().then(function(txt){
+                                var message = 'Unable to export ' + (molecules ? 'molecules' : 'scaffolds') + ' right now.';
+                                try {
+                                    var parsed = JSON.parse(txt || '{}');
+                                    if(parsed && parsed.error){ message = String(parsed.error); }
+                                } catch(_e) {
+                                    // Keep generic message when backend does not return JSON.
+                                }
+                                throw new Error(message);
+                            });
+                        }
+                        var fallbackName = molecules
+                            ? (releaseId + '_' + reactionType.toLowerCase() + '_molecules.sdf')
+                            : (releaseId + '_' + reactionType.toLowerCase() + '_scaffolds_' + mode + '.sdf');
+                        var filename = filenameFromHeaders(res.headers, fallbackName);
+                        return res.blob().then(function(blob){
+                            downloadBlob(filename, blob);
+                            setStatus(
+                                'Downloaded ' + (reactionType === 'LIKE' ? 'Liked' : 'High Priority') + ' '
+                                + (molecules ? 'molecules' : ('scaffolds (' + mode.replace('_', ' ') + ')'))
+                                + ' for ' + releaseId + (usernameValue ? (' as ' + usernameValue) : ' (all users)') + '.',
+                                false
+                            );
+                        });
+                    });
+            })
+            .catch(function(err){
+                setStatus((err && err.message) ? err.message : 'Unable to export right now.', true);
+            });
+    }
+    function buildReactionUrl(releaseId, reactionType, mode, molecules){
+        if(molecules){
+            return '/api/exports/reaction/molecules?release_id='+encodeURIComponent(releaseId)+'&reaction_type='+encodeURIComponent(reactionType);
+        }
+        return '/api/exports/reaction/scaffolds?release_id='+encodeURIComponent(releaseId)+'&reaction_type='+encodeURIComponent(reactionType)+'&mode='+encodeURIComponent(mode);
+    }
+    function buildConsensusUrl(releaseId, mode, molecules){
+        var n=consensusN();
+        if(molecules){
+            return '/api/exports/consensus/molecules?release_id='+encodeURIComponent(releaseId)+'&consensus_threshold_n='+encodeURIComponent(String(n));
+        }
+        return '/api/exports/consensus/scaffolds?release_id='+encodeURIComponent(releaseId)+'&mode='+encodeURIComponent(mode)+'&consensus_threshold_n='+encodeURIComponent(String(n));
+    }
+    function onAction(action){
+        var releaseId=selectedRelease();
+        if(!releaseId){ setStatus('Select a release first.', true); return; }
+        var u=username();
+        var n=consensusN();
+        if(action==='all-votes-csv'){
+            triggerDownload('/api/votes/release/'+encodeURIComponent(releaseId)+'/csv');
+            setStatus('Downloading all votes CSV for '+releaseId+'.', false);
+            return;
+        }
+        if(action==='summary-csv'){
+            triggerDownload('/api/votes/release/'+encodeURIComponent(releaseId)+'/summary.csv?consensus_threshold_n='+encodeURIComponent(String(n)));
+            setStatus('Downloading summary CSV for '+releaseId+'.', false);
+            return;
+        }
+        if(action==='user-csv'){
+            if(!u){ setStatus('Enter a username for user CSV export.', true); return; }
+            triggerDownload('/api/votes/release/'+encodeURIComponent(releaseId)+'/user/'+encodeURIComponent(u)+'.csv');
+            setStatus('Downloading user votes CSV for '+u+'.', false);
+            return;
+        }
+        if(action==='consensus-csv'){
+            triggerDownload('/api/votes/release/'+encodeURIComponent(releaseId)+'/consensus.csv?consensus_threshold_n='+encodeURIComponent(String(n)));
+            setStatus('Downloading consensus CSV for '+releaseId+' (N='+n+').', false);
+            return;
+        }
+
+        if(action==='like-scaffolds-top10'){ downloadReactionExport(releaseId, u, 'LIKE', 'top10', false); return; }
+        if(action==='like-scaffolds-all'){ downloadReactionExport(releaseId, u, 'LIKE', 'all_members', false); return; }
+        if(action==='like-molecules'){ downloadReactionExport(releaseId, u, 'LIKE', 'top10', true); return; }
+        if(action==='priority-scaffolds-top10'){ downloadReactionExport(releaseId, u, 'PRIORITY', 'top10', false); return; }
+        if(action==='priority-scaffolds-all'){ downloadReactionExport(releaseId, u, 'PRIORITY', 'all_members', false); return; }
+        if(action==='priority-molecules'){ downloadReactionExport(releaseId, u, 'PRIORITY', 'top10', true); return; }
+
+        var url='';
+        if(action==='consensus-scaffolds-top10'){url=buildConsensusUrl(releaseId,'top10',false);}
+        else if(action==='consensus-scaffolds-all'){url=buildConsensusUrl(releaseId,'all_members',false);}
+        else if(action==='consensus-molecules'){url=buildConsensusUrl(releaseId,'top10',true);}
+
+        if(!url){ setStatus('Unsupported action: '+action, true); return; }
+        triggerDownload(url);
+        setStatus('Starting download for '+action.replace(/-/g,' ')+' on '+releaseId+'.', false);
+    }
+
+    document.querySelectorAll('#voting-exports-panel [data-action]').forEach(function(btn){
+        btn.addEventListener('click', function(){ onAction(btn.getAttribute('data-action')); });
+    });
+})();
+</script>
+
+<section class="panel-shell">
+    <h2>Most Rejected Scaffolds</h2>
+    {% if metrics.votes.most_rejected_scaffolds %}
+    <table class="release-table">
+        <thead><tr><th>Release</th><th>Scaffold</th><th>Rejects</th></tr></thead>
+        <tbody>
+            {% for row in metrics.votes.most_rejected_scaffolds %}
+            <tr><td>{{ row.release_id }}</td><td>{{ row.object_id }}</td><td>{{ row.count }}</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">No scaffold rejects recorded yet.</div>
+    {% endif %}
+</section>
+
+<section class="panel-shell">
+    <h2>Most Prioritized Scaffolds</h2>
+    {% if metrics.votes.most_prioritized_scaffolds %}
+    <table class="release-table">
+        <thead><tr><th>Release</th><th>Scaffold</th><th>Priority Votes</th></tr></thead>
+        <tbody>
+            {% for row in metrics.votes.most_prioritized_scaffolds %}
+            <tr><td>{{ row.release_id }}</td><td>{{ row.object_id }}</td><td>{{ row.count }}</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">No scaffold priority votes recorded yet.</div>
+    {% endif %}
+</section>
+
+<section class="panel-shell">
+    <h2>Most Liked Molecules</h2>
+    {% if metrics.votes.most_liked_molecules %}
+    <table class="release-table">
+        <thead><tr><th>Release</th><th>Molecule</th><th>Likes</th></tr></thead>
+        <tbody>
+            {% for row in metrics.votes.most_liked_molecules %}
+            <tr><td>{{ row.release_id }}</td><td>{{ row.object_id }}</td><td>{{ row.count }}</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">No molecule likes recorded yet.</div>
+    {% endif %}
+</section>
+
+<section class="panel-shell">
     <h2>Job Status Distribution</h2>
     {% if metrics.job_status_counts %}
     <table class="release-table">

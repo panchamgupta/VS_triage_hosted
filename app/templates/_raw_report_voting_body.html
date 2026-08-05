@@ -1,0 +1,14 @@
+<div class="legacy-report-host hosted-raw-report-shell">
+    <section class="panel report-review-shell report-review-shell-focus hosted-raw-review-shell">
+        <div class="panel-head report-review-head">
+            <div>
+                <h2>Collaborative Report Review</h2>
+                <p class="smalltxt">This direct raw report view now uses the same collaborative voting layer as the dataset, release, and report shells.</p>
+            </div>
+            {% include "_reviewer_identity.html" %}
+        </div>
+    </section>
+</div>
+{% with frame_id=None %}
+{% include "_vote_bootstrap.html" %}
+{% endwith %}

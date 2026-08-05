@@ -1,10 +1,14 @@
 from pathlib import Path
 import shutil
-from datetime import datetime, timezone
+import logging
+import json
 
 from flask import abort
 
 from app.services.manifest_service import ManifestValidationError, validate_manifest
+
+
+LOGGER = logging.getLogger("hosted_portal.releases")
 
 
 class ReleaseService:
@@ -57,8 +61,10 @@ class ReleaseService:
         try:
             return self.cache.get_or_set(cache_key, lambda: self._load_manifest(release_id))
         except FileNotFoundError:
+            LOGGER.warning("Release not found", extra={"event": "release_missing", "release_id": release_id})
             abort(404, description=f"Release '{release_id}' was not found.")
         except ManifestValidationError as exc:
+            LOGGER.exception("Release manifest validation failed", extra={"event": "manifest_invalid", "release_id": release_id})
             abort(500, description=str(exc))
 
     def get_release_summary(self, release_id):
@@ -113,6 +119,18 @@ class ReleaseService:
             lambda: self._load_artifact_payload(release_id, artifact_key, release_dir, relative_path),
         )
 
+    def get_embedded_export_payload(self, release_id):
+        """Return report-embedded _EXPORT payload as a Python dict.
+
+        This intentionally reuses the report generator's canonical export payload
+        so reaction/consensus exports match UI/manual export behavior.
+        """
+        cache_key = f"artifact:{release_id}:embedded_export"
+        return self.cache.get_or_set(
+            cache_key,
+            lambda: self._load_embedded_export_payload(release_id),
+        )
+
     def _load_manifest(self, release_id):
         release_dir = self.store.resolve_release_dir(release_id)
         manifest = self.store.load_manifest(release_dir)
@@ -158,6 +176,33 @@ class ReleaseService:
             artifact_key,
             f"Unsupported JSON payload type: {type(payload).__name__}",
         )
+
+    def _load_embedded_export_payload(self, release_id):
+        report_path = self.get_static_report_path(release_id)
+        if report_path is None or not report_path.exists():
+            return {}
+
+        text = report_path.read_text(encoding="utf-8", errors="ignore")
+        start_marker = "const _EXPORT="
+        end_marker = ";\nconst _HAS_EXPORT="
+        start = text.find(start_marker)
+        if start < 0:
+            return {}
+        start += len(start_marker)
+        end = text.find(end_marker, start)
+        if end < 0:
+            return {}
+
+        raw = text[start:end]
+        try:
+            payload = json.loads(raw)
+        except Exception:
+            LOGGER.exception(
+                "Failed to parse embedded export payload",
+                extra={"event": "embedded_export_parse_failed", "release_id": release_id},
+            )
+            return {}
+        return payload if isinstance(payload, dict) else {}
 
     def _placeholder_payload(self, release_id, artifact_key, message):
         collection_key = "entries" if artifact_key == "pose_index" else "items"
@@ -230,23 +275,37 @@ class ReleaseService:
             },
         }
 
-    def delete_release(self, release_id, *, allow_delete=False, confirm_release_id=""):
+    def validate_release_delete(self, release_id, *, allow_delete=False, confirm_release_id=""):
         if not allow_delete:
             raise PermissionError("Release deletion is disabled.")
-        if str(confirm_release_id or "").strip() != str(release_id):
+
+        normalized_release_id = str(release_id or "").strip()
+        if str(confirm_release_id or "").strip() != normalized_release_id:
             raise PermissionError("Confirmation release id mismatch.")
 
-        release_dir = self.store.resolve_release_dir(release_id)
-        quarantine_root = Path(self.store.release_root) / ".trash"
-        quarantine_root.mkdir(parents=True, exist_ok=True)
-        timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-        quarantine_dir = quarantine_root / f"{release_id}_{timestamp}"
-        shutil.move(str(release_dir), str(quarantine_dir))
+        if self.active_release and normalized_release_id == self.active_release:
+            raise PermissionError(
+                "The configured default release cannot be deleted. Assign another default release first."
+            )
+
+        return self.store.resolve_release_dir(normalized_release_id)
+
+    def delete_release(self, release_id, *, allow_delete=False, confirm_release_id=""):
+        release_dir = self.validate_release_delete(
+            release_id,
+            allow_delete=allow_delete,
+            confirm_release_id=confirm_release_id,
+        )
+        shutil.rmtree(str(release_dir))
+        LOGGER.warning(
+            "Release directory deleted",
+            extra={"event": "release_deleted", "release_id": release_id, "release_dir": str(release_dir)},
+        )
 
         self.cache.invalidate_prefix(f"manifest:{release_id}")
         self.cache.invalidate_prefix(f"artifact:{release_id}:")
         return {
             "release_id": release_id,
             "deleted": True,
-            "quarantine_dir": str(quarantine_dir),
+            "release_dir": str(release_dir),
         }

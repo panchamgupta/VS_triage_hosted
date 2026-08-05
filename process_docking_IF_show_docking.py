@@ -543,11 +543,12 @@ def _normalize_sd_prop_list(values):
     out = []
     seen = set()
     for value in values or []:
-        text = str(value or "").strip()
-        if not text or text in seen:
-            continue
-        seen.add(text)
-        out.append(text)
+        for part in str(value or "").split(","):
+            text = part.strip()
+            if not text or text in seen:
+                continue
+            seen.add(text)
+            out.append(text)
     return out
 
 

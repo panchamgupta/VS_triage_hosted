@@ -476,25 +476,7 @@ def build_idea_cards(
                 f"</span></label>"
             )
         star_html = ""
-        if card_type == "Central":
-            star_html = (
-                f"<div class='star-wrap' data-scaffold='{sname}'>"
-                f"<span class='smalltxt'>Star:</span>"
-                f"<button type='button' class='star-btn' data-level='1' onclick=\"setStar('{sname_js}', 1)\">1</button>"
-                f"<button type='button' class='star-btn' data-level='2' onclick=\"setStar('{sname_js}', 2)\">2</button>"
-                f"<button type='button' class='star-btn' data-level='3' onclick=\"setStar('{sname_js}', 3)\">3</button>"
-                f"<button type='button' class='star-btn star-clear' onclick=\"setStar('{sname_js}', 0)\">x</button>"
-                f"</div>"
-            )
         deactivate_html = ""
-        if card_type == "Central":
-            deactivate_html = (
-                f"<label class='deactivate-control smalltxt' "
-                f"style='display:inline-flex;align-items:center;gap:5px;margin-left:8px;cursor:pointer;'>"
-                f"<input type='checkbox' class='deactivate-toggle' data-scaffold='{sname}' "
-                f"onchange=\"setScaffoldDeactivated('{sname_js}', this.checked)\" />"
-                "Deactivate</label>"
-            )
         range_html = ""
         if card_type == "Central":
             display_props = [
@@ -1405,17 +1387,8 @@ def write_html_report(
         .idea-card.is-deactivated select,
         .idea-card.is-deactivated textarea,
         .idea-card.is-deactivated .moltile { pointer-events: none; }
-        .idea-card.is-deactivated .deactivate-control,
-        .idea-card.is-deactivated .deactivate-control * { pointer-events: auto; }
         .card.sel-active { border-color: var(--accent) !important; box-shadow: 0 0 0 2px rgba(11, 110, 79, 0.3); }
         .moltile.member-sel-active { border-color: #1f3551 !important; box-shadow: 0 0 0 2px rgba(31, 53, 81, 0.2); background:#f7fbff; }
-        .star-wrap { display:inline-flex; align-items:center; gap:4px; margin-left:6px; }
-        .star-btn { border: 1px solid #c4d0df; background: #fff; color: #223; border-radius: 4px; padding: 2px 6px; cursor: pointer; font-size: 11px; }
-        .star-btn:hover { background: #f2f6fb; }
-        .star-btn.active { border-color: #c84c09; background: #fff2e8; color: #8b2f00; font-weight: 700; }
-        .star-btn.star-clear { color: #6a7280; }
-        .deactivate-control { color: #5f6d7a; font-weight: 600; }
-        .deactivate-control input { accent-color: #8a1f1f; cursor: pointer; }
         .panel-actions { display:flex; align-items:center; gap:8px; margin:6px 0 10px 0; }
         .panel-actions button { background:#fff; border:1px solid #c4d0df; color:#1f3551; border-radius:6px; padding:5px 10px; cursor:pointer; font-size:12px; }
         .panel-actions input[type='search'] { background:#fff; border:1px solid #c4d0df; color:#1f3551; border-radius:6px; padding:5px 10px; font-size:12px; min-width:230px; }
@@ -1678,9 +1651,7 @@ def write_html_report(
             fh.write("<p class='smalltxt' style='color:#0b6e4f;'><b>HBD gate check:</b> all report molecules satisfy the configured HBD limit.</p>")
         fh.write(
             "<div class='panel-actions'>"
-            "<button type='button' onclick='sortStarredToTop()'>Sort Starred to Top</button>"
             "<button type='button' onclick='resetScaffoldOrder()'>Reset Scaffold</button>"
-            "<button type='button' onclick='clearAllStars()'>Clear All Stars</button>"
             "<button type='button' onclick='activateAllScaffolds()'>Activate All</button>"
             "<input type='search' id='central-scaffold-search' placeholder='Search scaffold number (e.g., 15 or SCF-015)' />"
             "<label class='filter-chip'><input type='checkbox' id='filter-red-highlight' /> Red highlight</label>"
@@ -2696,7 +2667,6 @@ def write_html_report(
             "    _updateIncludeAllMemberLabels();\n"
             "    _updateVisibleCentralDropBadges();\n"
             "    _syncVisibleScaffoldSelections();\n"
-            "    Object.keys(_STARS||{}).forEach(function(name){if(typeof _applyStarUI==='function'){_applyStarUI(name);}});\n"
             "    _syncDeactivatedScaffolds();\n"
             "    _applyStructureHighlighting();\n"
             "    _renderDeepDivesForVisible(sliceScafs);\n"

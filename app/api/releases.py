@@ -49,3 +49,55 @@ def delete_release(release_id):
     except FileNotFoundError:
         return jsonify({"error": "Release not found."}), 404
     return jsonify(payload)
+
+
+@releases_bp.route("/releases/batch-delete", methods=["POST"])
+def batch_delete_releases():
+    body = request.get_json(silent=True) or {}
+    release_ids = body.get("release_ids")
+    if not isinstance(release_ids, list):
+        return jsonify({"error": "release_ids must be a list."}), 400
+
+    normalized = []
+    seen = set()
+    for value in release_ids:
+        release_id = str(value or "").strip()
+        if not release_id or release_id in seen:
+            continue
+        seen.add(release_id)
+        normalized.append(release_id)
+
+    if not normalized:
+        return jsonify({"error": "No releases selected."}), 400
+
+    service = _release_service()
+    allow_delete = bool(current_app.config.get("HOSTED_PORTAL_ALLOW_RELEASE_DELETE", False))
+    deleted = []
+
+    for release_id in normalized:
+        try:
+            service.validate_release_delete(
+                release_id,
+                allow_delete=allow_delete,
+                confirm_release_id=release_id,
+            )
+        except PermissionError as exc:
+            return jsonify({"error": str(exc)}), 403
+        except FileNotFoundError:
+            return jsonify({"error": f"Release not found: {release_id}."}), 404
+
+    for release_id in normalized:
+        payload = service.delete_release(
+            release_id,
+            allow_delete=allow_delete,
+            confirm_release_id=release_id,
+        )
+        deleted.append(payload)
+
+    return jsonify(
+        {
+            "requested": len(normalized),
+            "deleted": deleted,
+            "failed": [],
+        }
+    )

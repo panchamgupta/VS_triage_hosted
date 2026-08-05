@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block title %}{{ manifest.display_name }} Report{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{{ absolute_url_for('static', filename='css/legacy_report.css') }}?v={{ static_asset_version }}">
+{% endblock %}
+
+{% block content %}
+<div class="legacy-report-host legacy-report-host-focus">
+    <section class="hero hero-report-focus">
+        <div class="report-focus-meta">
+            <div>
+                <h1>{{ manifest.display_name }}</h1>
+                <p class="small">Primary collaborative medicinal chemistry review surface with scaffold voting and live polling updates.</p>
+            </div>
+            <div class="hosted-toolbar hosted-toolbar-compact">
+                <a class="hosted-btn hosted-btn-secondary" href="{{ absolute_url_for('pages.release_view', release_id=release_id) }}">Open Release Overview</a>
+                <a class="hosted-btn hosted-btn-secondary" href="{{ absolute_url_for('pages.raw_report_file', release_id=release_id) }}" target="_blank" rel="noopener noreferrer">Open Full Report in New Tab</a>
+                <a class="hosted-btn hosted-btn-secondary" href="{{ absolute_url_for('api_scaffolds.list_scaffolds', release_id=release_id) }}">Scaffolds JSON</a>
+            </div>
+        </div>
+    </section>
+
+    {% include "_report_shell.html" %}
+</div>
+{% endblock %}

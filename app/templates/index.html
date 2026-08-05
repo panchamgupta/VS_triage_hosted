@@ -22,15 +22,26 @@
 <section class="panel-shell">
     <div class="panel-head">
         <h2>Available Releases</h2>
-        {% if selected_release %}
-        <a class="button-link" href="{{ absolute_url_for('pages.release_view', release_id=selected_release) }}">Open Default Release</a>
-        {% endif %}
+        <div class="release-table-actions">
+            {% if selected_release %}
+            <a class="button-link" id="open-default-release-btn" data-open-default-release href="{{ absolute_url_for('pages.release_view', release_id=selected_release) }}">Open Default Release</a>
+            {% endif %}
+            {% if allow_release_delete %}
+            <button type="button" class="button-link secondary" id="delete-selected-releases-btn" disabled>Delete Selected Reports</button>
+            {% else %}
+            <span class="release-meta">Release deletion disabled by configuration.</span>
+            {% endif %}
+        </div>
     </div>
+    <div id="release-delete-feedback" class="form-feedback hidden" role="status" aria-live="polite"></div>
 
     {% if releases %}
     <table class="release-table">
         <thead>
             <tr>
+                {% if allow_release_delete %}
+                <th class="check-col">☐</th>
+                {% endif %}
                 <th>Release</th>
                 <th>Program</th>
                 <th>Target</th>
@@ -39,9 +50,20 @@
                 <th>Action</th>
             </tr>
         </thead>
-        <tbody>
+        <tbody id="release-table-body">
             {% for release in releases %}
-            <tr>
+            <tr data-release-row data-release-id="{{ release.release_id }}">
+                {% if allow_release_delete %}
+                <td class="check-col">
+                    <input
+                        type="checkbox"
+                        class="release-select-checkbox"
+                        data-release-select
+                        value="{{ release.release_id }}"
+                        aria-label="Select {{ release.display_name }}"
+                    >
+                </td>
+                {% endif %}
                 <td>
                     <div class="release-name">{{ release.display_name }}</div>
                     <div class="release-meta">{{ release.release_id }}</div>
@@ -75,6 +97,27 @@
         <p>Create a release directory under the configured release root and add a valid <code>manifest.json</code>.</p>
     </div>
     {% endif %}
+
+    <div id="release-delete-modal" class="confirm-modal hidden" role="dialog" aria-modal="true" aria-labelledby="release-delete-modal-title">
+        <div class="confirm-modal-card">
+            <h3 id="release-delete-modal-title">Delete reports?</h3>
+            <p>This will remove:</p>
+            <ul class="confirm-modal-list">
+                <li>release metadata</li>
+                <li>report HTML</li>
+                <li>poses</li>
+                <li>exports</li>
+                <li>manifests</li>
+                <li>release data</li>
+            </ul>
+            <p>This action cannot be undone.</p>
+            <div id="release-delete-selected-list" class="release-meta"></div>
+            <div class="actions-row">
+                <button type="button" class="button-link secondary" id="release-delete-cancel-btn">Cancel</button>
+                <button type="button" class="button-link" id="release-delete-confirm-btn">Delete Reports</button>
+            </div>
+        </div>
+    </div>
 </section>
 
 <section class="panel-shell muted-panel">
@@ -88,16 +131,9 @@
             <label>Project Name
                 <input type="text" name="project_name" required placeholder="PPI">
             </label>
-            <label>Target Name
-                <input type="text" name="target_name" required placeholder="STAT6">
-            </label>
-            <label>Report Size
-                <select name="report_size">
-                    <option value="compact">Compact</option>
-                    <option value="standard">Standard</option>
-                    <option value="wide" selected>Wide</option>
-                    <option value="ultra">Ultra</option>
-                </select>
+            <label>Custom Molecular Properties
+                <input type="text" name="text_sd_props" placeholder="Solubility,Permeability,pKa,ProjectScore">
+                <span class="inline-help">Comma-separated SDF properties to display in Molecular Properties section.</span>
             </label>
             <label>Interaction ID Column
                 <input type="text" name="interaction_id_col" value="Title">
@@ -124,10 +160,6 @@
             <label>Interaction Fingerprint CSV (required)
                 <input type="file" name="interaction_csv" accept=".csv" required>
                 <span class="field-tag required">Required</span>
-            </label>
-            <label>ADME / Property CSV (optional)
-                <input type="file" name="property_csv" accept=".csv">
-                <span class="field-tag optional">Optional</span>
             </label>
             <label>Protein PDB (optional)
                 <input type="file" name="protein_pdb" accept=".pdb">
