@@ -141,12 +141,14 @@ It includes:
 
 ## Common Routes
 
-- / : release landing page
-- /operations : operations and exports
-- /jobs : job history
-- /healthz : liveness
-- /readyz : readiness
-- /api/health : diagnostics
+Use base URL `http://10.17.7.88:8866` in production (or your local host/port in development).
+
+- [Home / Release Landing](http://10.17.7.88:8866/): choose a release and open campaign pages.
+- [Operations](http://10.17.7.88:8866/operations): run operations workflows and download exports.
+- [Jobs](http://10.17.7.88:8866/jobs): check job history and current processing status.
+- [Liveness Check](http://10.17.7.88:8866/healthz): quick up/down check for the website.
+- [Readiness Check](http://10.17.7.88:8866/readyz): confirms the app is ready to serve requests.
+- [Detailed Health API](http://10.17.7.88:8866/api/health): detailed health diagnostics in JSON.
 
 ## Additional Docs
 
